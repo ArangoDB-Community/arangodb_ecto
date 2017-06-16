@@ -1,18 +1,9 @@
-defmodule ArangodbEcto do
+defmodule ArangoDB.Ecto do
   @moduledoc """
-  Documentation for ArangodbEcto.
+  Ecto adapter for ArangoDB.
   """
 
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> ArangodbEcto.hello
-      :world
-
-  """
-  def hello do
-    :world
-  end
+  defdelegate autogenerate(field_type), to: ArangoDB.Ecto.Adapter
+  defdelegate loaders(primitive_type, ecto_type), to: ArangoDB.Ecto.Adapter
+  defdelegate dumpers(primitive_type, ecto_type), to: ArangoDB.Ecto.Adapter
 end
