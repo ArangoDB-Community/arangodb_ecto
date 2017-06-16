@@ -12,7 +12,7 @@ defmodule ArangoDB.Ecto.Query do
   @doc """
   Creates an AQL query to fetch all entries from the data store matching the given query.
   """
-  def all(query) do
+  def all(query, _) do
     sources = create_names(query)
 
     from     = from(query, sources)
@@ -22,6 +22,22 @@ defmodule ArangoDB.Ecto.Query do
     select = select(query, sources)
 
     IO.iodata_to_binary([from, where, order_by, offset_and_limit, select])
+  end
+
+  @doc """
+  Creates an AQL query to delete all entries from the data store matching the given query.
+  """
+  def delete_all(query, opts) do
+    sources = create_names(query)
+
+    from     = from(query, sources)
+    where    = where(query, sources)
+    order_by = order_by(query, sources)
+    offset_and_limit = offset_and_limit(query, sources)
+    remove   = remove(query, sources)
+    return = return_old(Keyword.get(opts, :returning, false))
+    
+    IO.iodata_to_binary([from, where, order_by, offset_and_limit, remove, return])
   end
 
   #
@@ -83,6 +99,14 @@ defmodule ArangoDB.Ecto.Query do
   defp offset_and_limit(%Query{offset: %QueryExpr{expr: offset_expr}, limit: %QueryExpr{expr: limit_expr}} = query, sources) do
     [" LIMIT ", expr(offset_expr, sources, query), ", ", expr(limit_expr, sources, query)]
   end
+
+  defp remove(%Query{from: from} = query, sources) do
+    {coll, name} = get_source(query, sources, 0, from)
+    [" REMOVE ", name, " IN " | coll]
+  end
+
+  defp return_old(false), do: []
+  defp return_old(true), do: " RETURN OLD"
 
   defp select(%Query{select: nil, distinct: distinct, from: from} = query, sources),
     do: select_fields([], distinct, from, sources, query)

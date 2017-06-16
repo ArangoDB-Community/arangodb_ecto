@@ -4,10 +4,10 @@ defmodule ArangoDB.Ecto.Query.Test do
 
   import Ecto.Query
 
-  defp aql(query, operation \\ :all, counter \\ 0) do
+  defp aql(query, operation \\ :all, opts \\ [], counter \\ 0) do
     {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, ArangoDB.Ecto, counter)
     query = Ecto.Query.Planner.normalize(query, operation, ArangoDB.Ecto, counter)
-    apply(ArangoDB.Ecto.Query, operation, [query])
+    apply(ArangoDB.Ecto.Query, operation, [query, opts])
   end
 
   describe "create AQL query" do
@@ -51,8 +51,10 @@ defmodule ArangoDB.Ecto.Query.Test do
     test "with 'in' operator in where clause" do
       assert aql(from p in "posts", where: p.title in []) =~
         "FOR p0 IN `posts` FILTER (FALSE) RETURN p0"
+
       assert aql(from p in "posts", where: p.title in ["1", "2", "3"]) =~
         "FOR p0 IN `posts` FILTER (p0.`title` IN ['1','2','3']) RETURN p0"
+
       assert aql(from p in "posts", where: not p.title in []) =~
         "FOR p0 IN `posts` FILTER (NOT (FALSE)) RETURN p0"
     end
@@ -60,8 +62,10 @@ defmodule ArangoDB.Ecto.Query.Test do
     test "with 'in' operator and pinning in where clause" do
       assert aql(from p in "posts", where: p.title in ^[]) =~
         "FOR p0 IN `posts` FILTER (FALSE) RETURN p0"
+
       assert aql(from p in "posts", where: p.title in ["1", ^"hello", "3"]) =~
         "FOR p0 IN `posts` FILTER (p0.`title` IN ['1',@1,'3']) RETURN p0"
+
       assert aql(from p in "posts", where: p.title in ^["1", "hello", "3"]) =~
         "FOR p0 IN `posts` FILTER (p0.`title` IN [@1,@2,@3]) RETURN p0"
     end
@@ -87,6 +91,18 @@ defmodule ArangoDB.Ecto.Query.Test do
       assert_raise Ecto.QueryError, ~r"offset can only be used in conjunction with limit", fn ->
         aql(from u in "users", offset: 2)
       end
+    end
+  end
+
+  describe "create remove query" do
+    test "without returning" do
+      assert aql((from u in "users", where: u.name == "Joe"), :delete_all) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') REMOVE u0 IN `users`"
+    end
+
+    test "with returning" do
+      assert aql((from u in "users", where: u.name == "Joe"), :delete_all, [returning: true]) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') REMOVE u0 IN `users` RETURN OLD"
     end
   end
 end
