@@ -36,8 +36,23 @@ defmodule ArangoDB.Ecto.Query do
     offset_and_limit = offset_and_limit(query, sources)
     remove   = remove(query, sources)
     return = return_old(Keyword.get(opts, :returning, false))
-    
+
     IO.iodata_to_binary([from, where, order_by, offset_and_limit, remove, return])
+  end
+
+  @doc """
+  Creates an AQL query to update all entries from the data store matching the given query.
+  """
+  def update_all(query, opts) do
+    sources = create_names(query)
+
+    from     = from(query, sources)
+    where    = where(query, sources)
+    order_by = order_by(query, sources)
+    offset_and_limit = offset_and_limit(query, sources)
+    update   = update(query, sources)
+    return = return_new(Keyword.get(opts, :returning, false))
+    IO.iodata_to_binary([from, where, order_by, offset_and_limit, update, return])
   end
 
   #
@@ -105,8 +120,17 @@ defmodule ArangoDB.Ecto.Query do
     [" REMOVE ", name, " IN " | coll]
   end
 
+  defp update(%Query{from: from} = query, sources) do
+    {coll, name} = get_source(query, sources, 0, from)
+    fields = update_fields(query, sources)
+    [ " UPDATE ", name, " WITH {", fields, "} IN " | coll]
+  end
+
   defp return_old(false), do: []
   defp return_old(true), do: " RETURN OLD"
+
+  defp return_new(false), do: []
+  defp return_new(true), do: " RETURN NEW"
 
   defp select(%Query{select: nil, distinct: distinct, from: from} = query, sources),
     do: select_fields([], distinct, from, sources, query)
@@ -126,6 +150,22 @@ defmodule ArangoDB.Ecto.Query do
     end)
     [" RETURN ", distinct(distinct, sources, query), "{ ", field_names | " }"]
   end
+
+  defp update_fields(%Query{from: from, updates: updates} = query, sources) do
+    {_from, name} = get_source(query, sources, 0, from)
+    fields = for(%{expr: expr} <- updates,
+                 {op, kw} <- expr,
+                 {key, value} <- kw,
+                 do: update_op(op, name, quote_name(key), value, sources, query))
+    Enum.intersperse(fields, ", ")
+  end
+
+  defp update_op(:set, _name, quoted_key, value, sources, query),
+    do: [quoted_key, ": " | expr(value, sources, query)]
+  defp update_op(:inc, name, quoted_key, value, sources, query),
+    do: [quoted_key, ": ", name, ?., quoted_key, " + " | expr(value, sources, query)]
+  defp update_op(command, _name, _quoted_key, _value, _sources, query),
+    do: error!(query, "Unknown update operation #{inspect command} for AQL")
 
   defp distinct(nil, _sources, _query), do: []
   defp distinct(%QueryExpr{expr: true}, _sources, _query),  do: "DISTINCT "

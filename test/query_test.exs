@@ -105,4 +105,18 @@ defmodule ArangoDB.Ecto.Query.Test do
         "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') REMOVE u0 IN `users` RETURN OLD"
     end
   end
+
+  describe "create update query" do
+    test "without returning" do
+      assert aql((from u in "users", where: u.name == "Joe", update: [set: [age: 42]]), :update_all) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') UPDATE u0 WITH {`age`: 42} IN `users`"
+      assert aql((from u in "users", where: u.name == "Joe", update: [inc: [age: 2]]), :update_all) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') UPDATE u0 WITH {`age`: u0.`age` + 2} IN `users`"
+    end
+
+    test "with returning" do
+      assert aql((from u in "users", where: u.name == "Joe", update: [set: [age: 42]]), :update_all, [returning: true]) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') UPDATE u0 WITH {`age`: 42} IN `users` RETURN NEW"
+    end
+  end
 end
