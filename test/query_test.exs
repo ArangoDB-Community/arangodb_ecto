@@ -48,6 +48,24 @@ defmodule ArangoDB.Ecto.Query.Test do
         "FOR u0 IN `users` FILTER ((u0.`name` == 'Joe') || (u0.`age` == 32)) RETURN u0"
     end
 
+    test "with 'in' operator in where clause" do
+      assert aql(from p in "posts", where: p.title in []) =~
+        "FOR p0 IN `posts` FILTER (FALSE) RETURN p0"
+      assert aql(from p in "posts", where: p.title in ["1", "2", "3"]) =~
+        "FOR p0 IN `posts` FILTER (p0.`title` IN ['1','2','3']) RETURN p0"
+      assert aql(from p in "posts", where: not p.title in []) =~
+        "FOR p0 IN `posts` FILTER (NOT (FALSE)) RETURN p0"
+    end
+
+    test "with 'in' operator and pinning in where clause" do
+      assert aql(from p in "posts", where: p.title in ^[]) =~
+        "FOR p0 IN `posts` FILTER (FALSE) RETURN p0"
+      assert aql(from p in "posts", where: p.title in ["1", ^"hello", "3"]) =~
+        "FOR p0 IN `posts` FILTER (p0.`title` IN ['1',@1,'3']) RETURN p0"
+      assert aql(from p in "posts", where: p.title in ^["1", "hello", "3"]) =~
+        "FOR p0 IN `posts` FILTER (p0.`title` IN [@1,@2,@3]) RETURN p0"
+    end
+
     test "with order by clause" do
       assert aql(from u in "users", order_by: u.name) =~
         "FOR u0 IN `users` SORT u0.`name` RETURN u0"

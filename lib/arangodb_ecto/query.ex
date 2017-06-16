@@ -177,6 +177,24 @@ defmodule ArangoDB.Ecto.Query do
     ["NOT (", expr(expr, sources, query), ?)]
   end
 
+  defp expr({:in, _, [_left, []]}, _sources, _query) do
+    "FALSE"
+  end
+
+  defp expr({:in, _, [left, right]}, sources, query) when is_list(right) do
+    args = intersperse_map(right, ?,, &expr(&1, sources, query))
+    [expr(left, sources, query), " IN [", args, ?]]
+  end
+
+  defp expr({:in, _, [_, {:^, _, [_, 0]}]}, _sources, _query) do
+    "FALSE"
+  end
+
+  defp expr({:in, _, [left, {:^, _, [idx, length]}]}, sources, query) do
+    args = Enum.intersperse(Enum.map(idx+1..idx+length, &"@#{&1}"), ?,)
+    [expr(left, sources, query), " IN [", args, ?]]
+  end
+
   defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
     case handle_call(fun, length(args)) do
       {:binary_op, op} ->
