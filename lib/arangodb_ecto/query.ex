@@ -141,14 +141,35 @@ defmodule ArangoDB.Ecto.Query do
     {_, name} = get_source(query, sources, 0, from)
     [" RETURN ", distinct(distinct, sources, query) | name]
   end
-  defp select_fields(fields, distinct, _from, sources, query) do
+  defp select_fields(fields, distinct, from, sources, query) do
     field_names = intersperse_map(fields, ", ", fn
       {key, value} ->
         [quote_name(key), ": ", expr(value, sources, query)]
+      {:&, _, [idx, fields, _]} ->
+        select_all_fields(fields, distinct, from, sources, query, idx)
       value ->
         [get_field_name(value), ": ", expr(value, sources, query)]
     end)
     [" RETURN ", distinct(distinct, sources, query), "{ ", field_names | " }"]
+  end
+
+  defp select_all_fields([], distinct, from, sources, query, _),
+    do: get_document_name(query, sources, from)
+  defp select_all_fields(nil, distinct, from, sources, query, _),
+    do: get_document_name(query, sources, from)
+
+  defp select_all_fields(fields, distinct, from, sources, query, idx) do
+    {source, name, schema} = elem(sources, idx)
+    if is_nil(schema) and is_nil(fields) do
+      get_document_name(query, sources, from)
+    else
+      intersperse_map(fields, ", ", &[quote_name(&1), ": ", name, ?. | quote_name(&1)])
+    end
+  end
+
+  defp get_document_name(query, sources, from) do
+    {_, name} = get_source(query, sources, 0, from)
+    name
   end
 
   defp update_fields(%Query{from: from, updates: updates} = query, sources) do
