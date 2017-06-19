@@ -3,6 +3,17 @@ defmodule ArangoDB.Ecto do
   Ecto adapter for ArangoDB.
   """
 
+  alias ArangoDB.Ecto.Utils
+
+  def truncate(repo, coll, opts \\ []) do
+    result = Utils.get_endpoint(repo, opts)
+      |> Arangoex.Collection.truncate(%Arangoex.Collection{name: coll})
+    case result do
+      {:ok, _} -> :ok
+      {:error, _} -> result
+    end
+  end
+
   @behaviour Ecto.Adapter
 
   # Delegates for Adapter behaviour

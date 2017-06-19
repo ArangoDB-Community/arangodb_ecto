@@ -35,11 +35,16 @@ defmodule ArangoDB.Ecto.Adapter do
 
   @spec loaders(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
+  def loaders(:uuid, Ecto.UUID), do: [&{:ok, &1}]
+  def loaders(:utc_datetime, _type), do: [&load_utc_datetime/1]
   def loaders(:naive_datetime, _type), do: [&NaiveDateTime.from_iso8601/1]
   def loaders(primitive, type), do: [type]
 
   @spec dumpers(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
+  def dumpers(:uuid, Ecto.UUID), do: [&{:ok, &1}]
+  def dumpers(:utc_datetime, _type),
+    do: [fn %DateTime{} = dt -> {:ok, DateTime.to_iso8601(dt)} end]
   def dumpers(:naive_datetime, _type),
     do: [fn %NaiveDateTime{} = dt -> {:ok, NaiveDateTime.to_iso8601(dt)} end]
   def dumpers(primitive, type), do: [type]
@@ -133,5 +138,12 @@ defmodule ArangoDB.Ecto.Adapter do
       |> Enum.with_index(1)
       |> Enum.map(fn {value, idx} -> {Integer.to_string(idx), value} end)
     %Arangoex.Cursor.Cursor{query: aql, bind_vars: vars}
+  end
+
+  defp load_utc_datetime(dt) do
+    case DateTime.from_iso8601(dt) do
+      {:ok, res, _} -> {:ok, res}
+      {:error, err} -> {:error, err}
+    end
   end
 end

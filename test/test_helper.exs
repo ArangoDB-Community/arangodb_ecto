@@ -5,6 +5,7 @@ Application.put_env(:ecto, :async_integration_tests, false)
 
 Code.require_file "../deps/ecto/integration_test/support/repo.exs", __DIR__
 
+Code.require_file "./integration/support/schemas.exs", __DIR__
 Code.require_file "./integration/support/migration.exs", __DIR__
 
 alias Ecto.Integration.TestRepo
@@ -31,15 +32,15 @@ defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
 
   setup do
-    #clear_collection(:posts)
-    #clear_collection(:users)
-    #clear_collection(:comments)
-    #clear_collection(:customs)
+    clear_collection(:posts)
+    clear_collection(:users)
+    clear_collection(:comments)
+    clear_collection(:customs)
     :ok
   end
 
   defp clear_collection(coll) do
-    #:ok = ArangoDB.Ecto.truncate(TestRepo, coll)
+    :ok = ArangoDB.Ecto.truncate(TestRepo, coll)
   end
 end
 
