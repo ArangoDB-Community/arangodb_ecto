@@ -90,3 +90,50 @@ defmodule Ecto.Integration.Custom do
     field :uuid, Ecto.UUID
   end
 end
+
+defmodule Ecto.Integration.Tag do
+  @moduledoc """
+  This module is used to test:
+
+    * The array type
+    * Embedding many schemas (uses array)
+
+  """
+  use ArangoDB.Ecto.Schema
+
+  schema "tags" do
+    field :ints, {:array, :integer}
+    field :uuids, {:array, Ecto.UUID}
+    embeds_many :items, Ecto.Integration.Item
+  end
+end
+
+defmodule Ecto.Integration.Item do
+  @moduledoc """
+  This module is used to test:
+
+    * Embedding
+
+  """
+  use Ecto.Schema
+
+  @primary_key false
+  embedded_schema do
+    field :price, :integer
+    field :valid_at, :date
+  end
+end
+
+defmodule Ecto.Integration.Order do
+  @moduledoc """
+  This module is used to test:
+
+    * Embedding one schema
+
+  """
+  use ArangoDB.Ecto.Schema
+
+  schema "orders" do
+    embeds_one :item, Ecto.Integration.Item
+  end
+end

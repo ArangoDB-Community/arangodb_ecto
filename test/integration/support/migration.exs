@@ -37,5 +37,16 @@ defmodule Ecto.Integration.Migration do
       #add :uuid, :uuid
     end
     create unique_index(:customs, [:uuid])
+
+    create table(:tags) do
+      #add :ints,  {:array, :integer}
+      #add :uuids, {:array, :uuid}, default: []
+      #add :items, {:array, :map}
+    end
+
+    create table(:orders) do
+      #add :item, :map
+      #add :comment_id, references(:comments)
+    end
   end
 end

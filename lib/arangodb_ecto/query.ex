@@ -294,6 +294,10 @@ defmodule ArangoDB.Ecto.Query do
     [?', escape_string(literal), ?']
   end
 
+  defp expr(list, sources, query) when is_list(list) do
+    [?[, intersperse_map(list, ?,, &expr(&1, sources, query)), ?]]
+  end
+
   defp expr(%Decimal{} = decimal, _sources, _query) do
     Decimal.to_string(decimal, :normal)
   end

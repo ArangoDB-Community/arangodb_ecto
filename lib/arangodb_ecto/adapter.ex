@@ -36,6 +36,7 @@ defmodule ArangoDB.Ecto.Adapter do
   @spec loaders(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
   def loaders(:uuid, Ecto.UUID), do: [&{:ok, &1}]
+  def loaders(:date, _type), do: [&load_date/1]
   def loaders(:utc_datetime, _type), do: [&load_utc_datetime/1]
   def loaders(:naive_datetime, _type), do: [&NaiveDateTime.from_iso8601/1]
   def loaders(primitive, type), do: [type]
@@ -43,6 +44,8 @@ defmodule ArangoDB.Ecto.Adapter do
   @spec dumpers(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
   def dumpers(:uuid, Ecto.UUID), do: [&{:ok, &1}]
+  def dumpers(:date, _type),
+    do: [fn d -> {:ok, Date.to_iso8601(d)} end]
   def dumpers(:utc_datetime, _type),
     do: [fn %DateTime{} = dt -> {:ok, DateTime.to_iso8601(dt)} end]
   def dumpers(:naive_datetime, _type),
@@ -51,11 +54,11 @@ defmodule ArangoDB.Ecto.Adapter do
 
   @spec prepare(atom :: :all | :update_all | :delete_all, query :: Ecto.Query.t) ::
           {:cache, prepared} | {:nocache, prepared}
-  def prepare(atom, query) do
+  def prepare(cmd, query) do
     #IO.puts "prepare(#{inspect atom}, #{inspect query, structs: false})"
     #raise "prepare is not yet implemented"
-    aql = apply(ArangoDB.Ecto.Query, atom, [query, []])
-    {:nocache, aql}
+    aql = apply(ArangoDB.Ecto.Query, cmd, [query, []])
+    {:nocache, {cmd, aql}}
   end
 
   @spec execute(repo, query_meta, query, params :: list(), process | nil, options) :: result when
@@ -63,12 +66,12 @@ defmodule ArangoDB.Ecto.Adapter do
           query: {:nocache, prepared} |
                  {:cached, (prepared -> :ok), cached} |
                  {:cache, (cached -> :ok), prepared}
-  def execute(repo, %{fields: fields, prefix: prefix} = meta, {:nocache, aql}, params, process, options) do
+  def execute(repo, %{fields: fields, prefix: prefix} = meta, {:nocache, {cmd, aql}}, params, process, options) do
     Logger.debug(aql)
     cursor = make_cursor(aql, params)
     Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Cursor.cursor_create(cursor)
-    |> to_result({fields, process})
+    |> to_result(cmd, {fields, process})
   end
 
   @spec insert_all(repo, schema_meta, header :: [atom], [fields], on_conflict, returning, options) ::
@@ -82,9 +85,10 @@ defmodule ArangoDB.Ecto.Adapter do
   def insert(repo, %{source: {prefix, collection}} = meta, fields, on_conflict, returning, options) do
     document = Enum.into(fields, %{})
     Logger.debug("Inserting document #{inspect document} into collection #{collection}")
-    Utils.get_endpoint(repo, options, prefix)
+    res = Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, document, [])
-    |> to_result
+    |> to_result(:insert, returning)
+    res
   end
 
   @spec delete(repo, schema_meta, filters, options) ::
@@ -103,19 +107,28 @@ defmodule ArangoDB.Ecto.Adapter do
   # Helpers
   #
 
-  defp to_result({:ok, doc}), do:
-    {:ok, []}
+  defp to_result({:ok, doc}, :insert, fields), do:
+    {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
 
-  defp to_result({:ok, %{"result" => []}}, _),
+  defp to_result({:ok, %{"result" => []}}, :all, _),
     do: {0, []}
-  defp to_result({:ok, %{"hasMore" => true}}, _),
+  defp to_result({:ok, %{"hasMore" => true}}, :all, _),
     do: raise "Query resulted in more entries than could be returned in a single batch, but cursors are not yet supported."
-  defp to_result({:ok, %{"result" => docs}}, {fields, process}) do
+  defp to_result({:ok, %{"result" => docs}}, :all, {fields, process}) do
     result = {length(docs), Enum.map(docs, &process_document(&1, fields, process))}
     IO.puts "Returned documents: #{inspect result}"
     result
   end
-  defp to_result({:error, err}, _),
+
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :update_all, _),
+    do: {count, []}
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, :update_all, {fields, process}),
+    do: {count, Enum.map(docs, &process_document(&1, fields, process))}
+
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :delete_all, _),
+    do: {count, nil}
+
+  defp to_result({:error, err}, _, _),
     do: raise err["errorMessage"]
 
   defp process_document(document, [{:&, _, _}] = fields, process) do
@@ -140,10 +153,17 @@ defmodule ArangoDB.Ecto.Adapter do
     %Arangoex.Cursor.Cursor{query: aql, bind_vars: vars}
   end
 
+  defp load_date(d) do
+    case Date.from_iso8601(d) do
+      {:ok, res} -> {:ok, res}
+      {:error, err} -> :error
+    end
+  end
+
   defp load_utc_datetime(dt) do
     case DateTime.from_iso8601(dt) do
       {:ok, res, _} -> {:ok, res}
-      {:error, err} -> {:error, err}
+      {:error, err} -> :error
     end
   end
 end
