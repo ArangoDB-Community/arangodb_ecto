@@ -280,6 +280,10 @@ defmodule ArangoDB.Ecto.Query do
     [expr(left, sources, query), " IN [", args, ?]]
   end
 
+  defp expr({:in, _, [left, right]}, sources, query) do
+    [expr(left, sources, query), " IN ", expr(right, sources, query)]
+  end
+
   defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
     case handle_call(fun, length(args)) do
       {:binary_op, op} ->
