@@ -115,4 +115,144 @@ defmodule Ecto.Integration.RepoTest do
     assert %{_key: ^cid, _rev: rev2, text: "0"} = TestRepo.update!(changeset)
     assert rev1 != rev2
   end
+
+  @tag :id_type
+  @tag :assigns_id_type
+  test "insert with user-assigned primary key" do
+    assert %Post{_key: "1"} = TestRepo.insert!(%Post{_key: "1"})
+  end
+
+  @tag :id_type
+  @tag :assigns_id_type
+  test "insert and update with user-assigned primary key in changeset" do
+    changeset = Ecto.Changeset.cast(%Post{_key: "11"}, %{"_key" => "13"}, ~w(_key))
+    assert %Post{_key: "13"} = post = TestRepo.insert!(changeset)
+
+    changeset = Ecto.Changeset.cast(post, %{"_key" => "15"}, ~w(_key))
+    assert %Post{_key: "15"} = TestRepo.update!(changeset)
+  end
+
+  test "insert and fetch a schema with utc timestamps" do
+    datetime = System.system_time(:seconds) * 1_000_000 |> DateTime.from_unix!(:microseconds)
+    TestRepo.insert!(%User{inserted_at: datetime})
+    assert [%{inserted_at: ^datetime}] = TestRepo.all(User)
+  end
+
+  # TODO
+#  test "optimistic locking in update/delete operations" do
+#    import Ecto.Changeset, only: [cast: 3, optimistic_lock: 2]
+#    base_post = TestRepo.insert!(%Comment{})
+#
+#    cs_ok =
+#      base_post
+#      |> cast(%{"text" => "foo.bar"}, ~w(text))
+#      |> optimistic_lock(:_rev)
+#    TestRepo.update!(cs_ok)
+#
+#    cs_stale = optimistic_lock(base_post, :_rev)
+#    assert_raise Ecto.StaleEntryError, fn -> TestRepo.update!(cs_stale) end
+#    a#ssert_raise Ecto.StaleEntryError, fn -> TestRepo.delete!(cs_stale) end
+#  end
+
+  @tag :unique_constraint
+  test "unique constraint" do
+    changeset = Ecto.Changeset.change(%Custom{}, uuid: Ecto.UUID.generate())
+    {:ok, _}  = TestRepo.insert(changeset)
+
+    exception =
+      assert_raise Ecto.ConstraintError, ~r/constraint error when attempting to insert struct/, fn ->
+        changeset
+        |> TestRepo.insert()
+      end
+
+    assert exception.message =~ "unique: constraint violated"
+    assert exception.message =~ "The changeset has not defined any constraint."
+
+    message = ~r/constraint error when attempting to insert struct/
+    exception =
+      assert_raise Ecto.ConstraintError, message, fn ->
+        changeset
+        |> Ecto.Changeset.unique_constraint(:uuid, name: :my_unique_constraint)
+        |> TestRepo.insert()
+      end
+
+    assert exception.message =~ "unique: my_unique_constraint"
+  end
+
+  test "get(!)" do
+    post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    post2 = TestRepo.insert!(%Post{title: "2", text: "hai"})
+
+    assert post1 == TestRepo.get(Post, post1._key)
+    assert post2 == TestRepo.get(Post, to_string post2._key) # With casting
+
+    assert post1 == TestRepo.get!(Post, post1._key)
+    assert post2 == TestRepo.get!(Post, to_string post2._key) # With casting
+
+    TestRepo.delete!(post1)
+
+    assert nil   == TestRepo.get(Post, post1._key)
+    assert_raise Ecto.NoResultsError, fn ->
+      TestRepo.get!(Post, post1._key)
+    end
+  end
+
+  test "get(!) with custom source" do
+    custom = Ecto.put_meta(%Custom{}, source: "posts")
+    custom = TestRepo.insert!(custom)
+    key    = custom._key
+    assert %Custom{_key: ^key, __meta__: %{source: {nil, "posts"}}} =
+           TestRepo.get(from(c in {"posts", Custom}), key)
+  end
+
+  test "get(!) with binary_id" do
+    custom = TestRepo.insert!(%Custom{})
+    key = custom._key
+    assert %Custom{_key: ^key} = TestRepo.get(Custom, key)
+  end
+
+  test "get_by(!)" do
+    post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    post2 = TestRepo.insert!(%Post{title: "2", text: "hello"})
+
+    assert post1 == TestRepo.get_by(Post, _key: post1._key)
+    assert post1 == TestRepo.get_by(Post, text: post1.text)
+    assert post1 == TestRepo.get_by(Post, _key: post1._key, text: post1.text)
+    assert post2 == TestRepo.get_by(Post, _key: to_string(post2._key)) # With casting
+    assert nil   == TestRepo.get_by(Post, text: "hey")
+    assert nil   == TestRepo.get_by(Post, _key: post2._key, text: "hey")
+
+    assert post1 == TestRepo.get_by!(Post, _key: post1._key)
+    assert post1 == TestRepo.get_by!(Post, text: post1.text)
+    assert post1 == TestRepo.get_by!(Post, _key: post1._key, text: post1.text)
+    assert post2 == TestRepo.get_by!(Post, _key: to_string(post2._key)) # With casting
+
+    assert post1 == TestRepo.get_by!(Post, %{_key: post1._key})
+
+    assert_raise Ecto.NoResultsError, fn ->
+      TestRepo.get_by!(Post, _key: post2._key, text: "hey")
+    end
+  end
+
+  test "first, last and one(!)" do
+    post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    post2 = TestRepo.insert!(%Post{title: "2", text: "hai"})
+
+    assert post1 == Post |> first |> TestRepo.one
+    assert post2 == Post |> last |> TestRepo.one
+
+    query = from p in Post, order_by: p.title
+    assert post1 == query |> first |> TestRepo.one
+    assert post2 == query |> last |> TestRepo.one
+
+    query = from p in Post, order_by: [desc: p.title], limit: 10
+    assert post2 == query |> first |> TestRepo.one
+    assert post1 == query |> last |> TestRepo.one
+
+    query = from p in Post, where: is_nil(p._key)
+    refute query |> first |> TestRepo.one
+    refute query |> first |> TestRepo.one
+    assert_raise Ecto.NoResultsError, fn -> query |> first |> TestRepo.one! end
+    assert_raise Ecto.NoResultsError, fn -> query |> last |> TestRepo.one! end
+  end
 end

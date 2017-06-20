@@ -262,6 +262,10 @@ defmodule ArangoDB.Ecto.Query do
     ["NOT (", expr(expr, sources, query), ?)]
   end
 
+  defp expr({:is_nil, _, [arg]}, sources, query) do
+    [expr(arg, sources, query) | " == NULL"]
+  end
+
   defp expr({:in, _, [_left, []]}, _sources, _query) do
     "FALSE"
   end

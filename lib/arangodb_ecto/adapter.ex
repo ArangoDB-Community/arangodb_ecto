@@ -159,6 +159,13 @@ defmodule ArangoDB.Ecto.Adapter do
   defp to_result({:ok, _}, :delete, _), do:
     {:ok, []}
 
+
+  #
+  # errors
+
+  defp to_result({:error, %{"code" => 409}}, _, _),
+    do: {:invalid, [unique: "constraint violated"]}
+
   defp to_result({:error, err}, _, _),
     do: raise err["errorMessage"]
 
