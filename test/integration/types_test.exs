@@ -125,9 +125,9 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     post = TestRepo.insert!(%Post{meta: %{"world" => "hello"}})
     assert TestRepo.get!(Post, post._key).meta == %{"world" => "hello"}
 
-    # TODO
-#    post = TestRepo.update!(Ecto.Changeset.change post, meta: %{hello: "world"})
-#    assert TestRepo.get!(Post, post._key).meta == %{"hello" => "world"}
+    # TODO - by default ArangoDB merges objects
+    #post = TestRepo.update!(Ecto.Changeset.change(post, meta: %{hello: "world"}))
+    #assert TestRepo.get!(Post, post._key).meta == %{"hello" => "world"}
 
     query = from(p in Post, where: p._key == ^post._key)
     TestRepo.update_all(query, set: [meta: %{world: "hello"}])

@@ -67,6 +67,7 @@ defmodule ArangoDB.Ecto.Adapter do
   def execute(repo, %{fields: fields, prefix: prefix} = meta, {:nocache, {cmd, aql}}, params, process, options) do
     Logger.debug(aql)
     cursor = make_cursor(aql, params)
+    # TODO - apply Arango specific options
     Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Cursor.cursor_create(cursor)
     |> to_result(cmd, {fields, process})
@@ -80,6 +81,7 @@ defmodule ArangoDB.Ecto.Adapter do
     opts = if return_new,
       do: [returnNew: true],
       else: []
+    # TODO - apply Arango specific options
     Logger.debug("Inserting documents #{inspect docs} into collection #{collection}")
     Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, opts)
@@ -91,10 +93,10 @@ defmodule ArangoDB.Ecto.Adapter do
   def insert(repo, %{source: {prefix, collection}} = meta, fields, on_conflict, returning, options) do
     document = Enum.into(fields, %{})
     Logger.debug("Inserting document #{inspect document} into collection #{collection}")
-    res = Utils.get_endpoint(repo, options, prefix)
+    # TODO - apply Arango specific options
+    Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, document, [])
     |> to_result(:insert, returning)
-    res
   end
 
   @spec delete(repo, schema_meta, filters, options) ::
@@ -102,6 +104,7 @@ defmodule ArangoDB.Ecto.Adapter do
   def delete(repo, %{source: {prefix, collection}} = meta, [{:_key, key}], options) do
     Logger.debug("Deleting document with key #{key} from collection #{collection}")
     doc = %{_key: key, _id: "#{collection}/#{key}"}
+    # TODO - apply Arango specific options
     Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Document.delete(doc)
     |> to_result(:delete, [])
@@ -117,6 +120,7 @@ defmodule ArangoDB.Ecto.Adapter do
     document = Enum.into(fields, %{})
     old = %{_key: key, _id: "#{collection}/#{key}"}
     Logger.debug("Updating document #{inspect old} to: #{inspect document}")
+    # TODO - apply Arango specific options
     Utils.get_endpoint(repo, options, prefix)
     |> Arangoex.Document.update(old, document, [])
     |> to_result(:update, returning)
@@ -190,14 +194,15 @@ defmodule ArangoDB.Ecto.Adapter do
     end
   end
 
-  def process_documents(docs, []),
+  defp process_documents(docs, []),
     do: {length(docs), nil}
 
-  def process_documents(docs, fields),
-    do: {length(docs), Enum.map(docs, fn
-                                       {:ok, {_ref, doc}} -> process_document(doc, fields)
-                                       {:ok, ref} -> process_document(ref, fields)
-                                      end)}
+  defp process_documents(docs, fields) do
+    {length(docs), Enum.map(docs, fn
+                                   {:ok, {_ref, doc}} -> process_document(doc, fields)
+                                   {:ok, ref} -> process_document(ref, fields)
+                                  end)}
+  end
 
   defp process_document(document, fields),
     do: process_document(document, fields, fn _, v, _ -> v end)

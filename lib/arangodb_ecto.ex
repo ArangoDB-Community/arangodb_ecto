@@ -1,6 +1,9 @@
 defmodule ArangoDB.Ecto do
   @moduledoc """
   Ecto adapter for ArangoDB.
+
+  At the moment it supports the "from", "where", "order by", "limit"
+  "offset" and "select" clauses.
   """
 
   alias ArangoDB.Ecto.Utils
