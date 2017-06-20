@@ -185,12 +185,25 @@ defmodule ArangoDB.Ecto.Query do
     Enum.intersperse(fields, ", ")
   end
 
-  defp update_op(:set, _name, quoted_key, value, sources, query),
-    do: [quoted_key, ": " | expr(value, sources, query)]
-  defp update_op(:inc, name, quoted_key, value, sources, query),
-    do: [quoted_key, ": ", name, ?., quoted_key, " + " | expr(value, sources, query)]
-  defp update_op(command, _name, _quoted_key, _value, _sources, query),
-    do: error!(query, "Unknown update operation #{inspect command} for AQL")
+  defp update_op(cmd, name, quoted_key, value, sources, query) do
+    value = update_op_value(cmd, name, quoted_key, value, sources, query)
+    [quoted_key, ": " | value]
+  end
+
+  defp update_op_value(:set, _name, quoted_key, value, sources, query),
+    do: expr(value, sources, query)
+
+  defp update_op_value(:inc, name, quoted_key, value, sources, query),
+    do: [name, ?., quoted_key, " + " | expr(value, sources, query)]
+
+  defp update_op_value(:push, name, quoted_key, value, sources, query),
+    do: ["PUSH(", name, ?., quoted_key, ", ", expr(value, sources, query), ")"]
+
+  defp update_op_value(:pull, name, quoted_key, value, sources, query),
+    do: ["REMOVE_VALUE(", name, ?., quoted_key, ", ", expr(value, sources, query), ", 1)"]
+
+  defp update_op_value(cmd, _name, _quoted_key, _value, _sources, query),
+    do: error!(query, "Unknown update operation #{inspect cmd} for AQL")
 
   defp distinct(nil, _sources, _query), do: []
   defp distinct(%QueryExpr{expr: true}, _sources, _query),  do: "DISTINCT "
