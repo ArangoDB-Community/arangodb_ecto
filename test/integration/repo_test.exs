@@ -275,4 +275,53 @@ defmodule Ecto.Integration.RepoTest do
   test "insert all with invalid prefix" do
     assert catch_error(TestRepo.insert_all(Post, [[], []], prefix: "oops"))
   end
+
+  @tag :returning
+  test "insert all with returning with schema" do
+    assert {0, []} = TestRepo.insert_all(Comment, [], returning: true)
+    assert {0, nil} = TestRepo.insert_all(Comment, [], returning: false)
+
+    {2, [c1, c2]} = TestRepo.insert_all(Comment, [[text: "1"], [text: "2"]], returning: [:_key, :text])
+    assert %Comment{text: "1", __meta__: %{state: :loaded}} = c1
+    assert %Comment{text: "2", __meta__: %{state: :loaded}} = c2
+
+    {2, [c1, c2]} = TestRepo.insert_all(Comment, [[text: "3"], [text: "4"]], returning: true)
+    assert %Comment{text: "3", __meta__: %{state: :loaded}} = c1
+    assert %Comment{text: "4", __meta__: %{state: :loaded}} = c2
+  end
+
+  @tag :returning
+  test "insert all with returning without schema" do
+    {2, [c1, c2]} = TestRepo.insert_all("comments", [[text: "1"], [text: "2"]], returning: [:_key, :text])
+    assert %{_key: _, text: "1"} = c1
+    assert %{_key: _, text: "2"} = c2
+
+    assert_raise ArgumentError, fn ->
+      TestRepo.insert_all("comments", [[text: "1"], [text: "2"]], returning: true)
+    end
+  end
+
+  test "insert all with dumping" do
+    datetime = ~N[2014-01-16 20:26:51.000000]
+    assert {2, nil} = TestRepo.insert_all(Post, [%{inserted_at: datetime}, %{title: "date"}])
+    assert [%Post{inserted_at: ^datetime, title: nil},
+            %Post{inserted_at: nil, title: "date"}] = TestRepo.all(Post |> order_by(:title))
+  end
+
+  test "insert all autogenerates for binary_id type" do
+    custom = TestRepo.insert!(%Custom{_key: nil})
+    assert custom._key
+    assert TestRepo.get(Custom, custom._key)
+    assert TestRepo.delete!(custom)
+    refute TestRepo.get(Custom, custom._key)
+
+    uuid = Ecto.UUID.generate
+    IO.puts inspect(uuid)
+    assert {2, nil} = TestRepo.insert_all(Custom, [%{uuid: uuid}, %{_key: custom._key}])
+    assert [%Custom{_key: key2, uuid: nil},
+            %Custom{_key: key1, uuid: ^uuid}] = Enum.sort_by(TestRepo.all(Custom), & &1.uuid)
+    assert key1 && key2
+    assert custom._key != key1
+    assert custom._key == key2
+  end
 end

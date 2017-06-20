@@ -78,9 +78,13 @@ defmodule ArangoDB.Ecto.Adapter do
           {integer, [[term]] | nil} | no_return
   def insert_all(repo, %{source: {prefix, collection}}, header, fields, on_conflict, returning, options) do
     docs = build_documents(fields)
+    return_new = Enum.any?(returning, &not &1 in [:_id, :_key, :_rev])
+    opts = if return_new,
+      do: [returnNew: true],
+      else: []
     Logger.debug("Inserting documents #{inspect docs} into collection #{collection}")
     Utils.get_endpoint(repo, options, prefix)
-    |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, [])
+    |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, opts)
     |> to_result(:insert_all, returning)
   end
 
@@ -199,6 +203,15 @@ defmodule ArangoDB.Ecto.Adapter do
 
   def process_documents(docs, []),
     do: {length(docs), nil}
+
+  def process_documents(docs, fields),
+    do: {length(docs), Enum.map(docs, fn
+                                       {:ok, {_ref, doc}} -> process_document(doc, fields)
+                                       {:ok, ref} -> process_document(ref, fields)
+                                      end)}
+
+  defp process_document(document, fields),
+    do: process_document(document, fields, fn _, v, _ -> v end)
 
   defp process_document(document, [{:&, _, _}] = fields, process) do
     fields
