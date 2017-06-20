@@ -324,4 +324,113 @@ defmodule Ecto.Integration.RepoTest do
     assert custom._key != key1
     assert custom._key == key2
   end
+
+  test "update all" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+
+    assert {3, nil} = TestRepo.update_all(Post, set: [title: "x"])
+
+    assert %Post{title: "x"} = TestRepo.get(Post, id1)
+    assert %Post{title: "x"} = TestRepo.get(Post, id2)
+    assert %Post{title: "x"} = TestRepo.get(Post, id3)
+
+    assert {3, nil} = TestRepo.update_all("posts", [set: [title: nil]], returning: false)
+
+    assert %Post{title: nil} = TestRepo.get(Post, id1)
+    assert %Post{title: nil} = TestRepo.get(Post, id2)
+    assert %Post{title: nil} = TestRepo.get(Post, id3)
+  end
+
+  @tag :invalid_prefix
+  test "update all with invalid prefix" do
+    assert catch_error(TestRepo.update_all(Post, [set: [title: "x"]], prefix: "oops"))
+  end
+
+  @tag :returning
+  test "update all with returning with schema" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+
+    assert {3, posts} = TestRepo.update_all(Post, [set: [title: "x"]], returning: true)
+
+    res = Enum.sort_by(posts, & &1._key)
+    IO.puts inspect(res)
+    [p1, p2, p3] = res
+    assert %Post{_key: ^id1, title: "x"} = p1
+    assert %Post{_key: ^id2, title: "x"} = p2
+    assert %Post{_key: ^id3, title: "x"} = p3
+
+    assert {3, posts} = TestRepo.update_all(Post, [set: [visits: 11]], returning: [:_key, :visits])
+
+    res = Enum.sort_by(posts, & &1._key)
+    IO.puts inspect(res)
+    [p1, p2, p3] = res
+    assert %Post{_key: ^id1, title: nil, visits: 11} = p1
+    assert %Post{_key: ^id2, title: nil, visits: 11} = p2
+    assert %Post{_key: ^id3, title: nil, visits: 11} = p3
+  end
+
+  # TODO
+#  @tag :returning
+#  test "update all with returning without schema" do
+#    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
+#    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
+#    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+#
+#    assert {3, posts} = TestRepo.update_all("posts", [set: [title: "x"]], returning: [:_key, :title])
+#
+#    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
+#    assert p1 == %{_key: id1, title: "x"}
+#    assert p2 == %{_key: id2, title: "x"}
+#    assert p3 == %{_key: id3, title: "x"}
+#  end
+
+  test "update all with filter" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+
+    query = from(p in Post, where: p.title == "1" or p.title == "2",
+                            update: [set: [text: ^"y"]])
+    assert {2, nil} = TestRepo.update_all(query, set: [title: "x"])
+
+    assert %Post{title: "x", text: "y"} = TestRepo.get(Post, id1)
+    assert %Post{title: "x", text: "y"} = TestRepo.get(Post, id2)
+    assert %Post{title: "3", text: nil} = TestRepo.get(Post, id3)
+  end
+
+  test "update all no entries" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+
+    query = from(p in Post, where: p.title == "4")
+    assert {0, nil} = TestRepo.update_all(query, set: [title: "x"])
+
+    assert %Post{title: "1"} = TestRepo.get(Post, id1)
+    assert %Post{title: "2"} = TestRepo.get(Post, id2)
+    assert %Post{title: "3"} = TestRepo.get(Post, id3)
+  end
+
+  test "update all increment syntax" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", visits: 0})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", visits: 1})
+
+    # Positive
+    query = from p in Post, where: not is_nil(p._key), update: [inc: [visits: 2]]
+    assert {2, nil} = TestRepo.update_all(query, [])
+
+    assert %Post{visits: 2} = TestRepo.get(Post, id1)
+    assert %Post{visits: 3} = TestRepo.get(Post, id2)
+
+    # Negative
+    query = from p in Post, where: not is_nil(p._key), update: [inc: [visits: -1]]
+    assert {2, nil} = TestRepo.update_all(query, [])
+
+    assert %Post{visits: 1} = TestRepo.get(Post, id1)
+    assert %Post{visits: 2} = TestRepo.get(Post, id2)
+  end
 end

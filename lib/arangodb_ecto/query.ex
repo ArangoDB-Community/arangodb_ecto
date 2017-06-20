@@ -12,7 +12,7 @@ defmodule ArangoDB.Ecto.Query do
   @doc """
   Creates an AQL query to fetch all entries from the data store matching the given query.
   """
-  def all(query, _) do
+  def all(query) do
     sources = create_names(query)
 
     from     = from(query, sources)
@@ -27,7 +27,7 @@ defmodule ArangoDB.Ecto.Query do
   @doc """
   Creates an AQL query to delete all entries from the data store matching the given query.
   """
-  def delete_all(query, opts) do
+  def delete_all(query) do
     sources = create_names(query)
 
     from     = from(query, sources)
@@ -35,7 +35,7 @@ defmodule ArangoDB.Ecto.Query do
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
     remove   = remove(query, sources)
-    return = return_old(Keyword.get(opts, :returning, false))
+    return = returning("OLD", query, sources)
 
     IO.iodata_to_binary([from, where, order_by, offset_and_limit, remove, return])
   end
@@ -43,7 +43,7 @@ defmodule ArangoDB.Ecto.Query do
   @doc """
   Creates an AQL query to update all entries from the data store matching the given query.
   """
-  def update_all(query, opts) do
+  def update_all(query) do
     sources = create_names(query)
 
     from     = from(query, sources)
@@ -51,7 +51,8 @@ defmodule ArangoDB.Ecto.Query do
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
     update   = update(query, sources)
-    return = return_new(Keyword.get(opts, :returning, false))
+    return = returning("NEW", query, sources)
+
     IO.iodata_to_binary([from, where, order_by, offset_and_limit, update, return])
   end
 
@@ -126,11 +127,14 @@ defmodule ArangoDB.Ecto.Query do
     [ " UPDATE ", name, " WITH {", fields, "} IN " | coll]
   end
 
-  defp return_old(false), do: []
-  defp return_old(true), do: " RETURN OLD"
-
-  defp return_new(false), do: []
-  defp return_new(true), do: " RETURN NEW"
+  defp returning(_, %Query{select: nil}, _sources),
+    do: []
+  defp returning(version, query, sources) do
+    {source, _, schema} = elem(sources, 0)
+    res = select(query, {{source, version, schema}})
+    IO.puts "Returning: #{inspect res}"
+    res
+  end
 
   defp select(%Query{select: nil, distinct: distinct, from: from} = query, sources),
     do: select_fields([], distinct, from, sources, query)
@@ -141,6 +145,8 @@ defmodule ArangoDB.Ecto.Query do
     {_, name} = get_source(query, sources, 0, from)
     [" RETURN ", distinct(distinct, sources, query) | name]
   end
+  defp select_fields([{:&, _, [_, nil, _]}], distinct, from, sources, query),
+    do: select_fields([], distinct, from, sources, query)
   defp select_fields(fields, distinct, from, sources, query) do
     field_names = intersperse_map(fields, ", ", fn
       {key, value} ->

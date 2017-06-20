@@ -4,10 +4,10 @@ defmodule ArangoDB.Ecto.Query.Test do
 
   import Ecto.Query
 
-  defp aql(query, operation \\ :all, opts \\ [], counter \\ 0) do
+  defp aql(query, operation \\ :all, counter \\ 0) do
     {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, ArangoDB.Ecto, counter)
     query = Ecto.Query.Planner.normalize(query, operation, ArangoDB.Ecto, counter)
-    apply(ArangoDB.Ecto.Query, operation, [query, opts])
+    apply(ArangoDB.Ecto.Query, operation, [query])
   end
 
   describe "create AQL query" do
@@ -101,8 +101,11 @@ defmodule ArangoDB.Ecto.Query.Test do
     end
 
     test "with returning" do
-      assert aql((from u in "users", where: u.name == "Joe"), :delete_all, [returning: true]) =~
+      assert aql((from u in "users", where: u.name == "Joe", select: u), :delete_all) =~
         "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') REMOVE u0 IN `users` RETURN OLD"
+
+      assert aql((from u in "users", where: u.name == "Joe", select: u.name), :delete_all) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') REMOVE u0 IN `users` RETURN { `name`: OLD.`name` }"
     end
   end
 
@@ -115,8 +118,11 @@ defmodule ArangoDB.Ecto.Query.Test do
     end
 
     test "with returning" do
-      assert aql((from u in "users", where: u.name == "Joe", update: [set: [age: 42]]), :update_all, [returning: true]) =~
+      assert aql((from u in "users", where: u.name == "Joe", select: u, update: [set: [age: 42]]), :update_all) =~
         "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') UPDATE u0 WITH {`age`: 42} IN `users` RETURN NEW"
+
+      assert aql((from u in "users", where: u.name == "Joe", select: u.name, update: [set: [age: 42]]), :update_all) =~
+        "FOR u0 IN `users` FILTER (u0.`name` == 'Joe') UPDATE u0 WITH {`age`: 42} IN `users` RETURN { `name`: NEW.`name` }"
     end
   end
 end

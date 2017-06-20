@@ -57,7 +57,7 @@ defmodule ArangoDB.Ecto.Adapter do
   def prepare(cmd, query) do
     #IO.puts "prepare(#{inspect atom}, #{inspect query, structs: false})"
     #raise "prepare is not yet implemented"
-    aql = apply(ArangoDB.Ecto.Query, cmd, [query, []])
+    aql = apply(ArangoDB.Ecto.Query, cmd, [query])
     {:nocache, {cmd, aql}}
   end
 
@@ -124,7 +124,7 @@ defmodule ArangoDB.Ecto.Adapter do
     |> to_result(:update, returning)
   end
   def update(repo, schema_meta, fields, filters, returning, options) do
-    raise "update is not yet implemented"
+    raise "update with multiple filters is not yet implemented"
   end
 
   #
@@ -159,8 +159,8 @@ defmodule ArangoDB.Ecto.Adapter do
   #
   # update_all
 
-  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :update_all, _),
-    do: {count, []}
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :update_all, x),
+    do: {count, nil}
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, :update_all, {fields, process}),
     do: {count, Enum.map(docs, &process_document(&1, fields, process))}
 
