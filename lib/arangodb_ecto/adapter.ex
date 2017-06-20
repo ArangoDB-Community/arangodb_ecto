@@ -93,8 +93,16 @@ defmodule ArangoDB.Ecto.Adapter do
 
   @spec delete(repo, schema_meta, filters, options) ::
           {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
+  def delete(repo, %{source: {prefix, collection}} = meta, [{:_key, key}], options) do
+    Logger.debug("Deleting document with key #{key} from collection #{collection}")
+    doc = %{_key: key, _id: "#{collection}/#{key}"}
+    Utils.get_endpoint(repo, options, prefix)
+    |> Arangoex.Document.delete(doc)
+    |> to_result(:delete, [])
+  end
+
   def delete(repo, schema_meta, filters, options) do
-    raise "delete is not yet implemented"
+    raise "delete with multiple filters is not yet implemented"
   end
 
   @spec update(repo, schema_meta, fields, filters, returning, options) ::
@@ -107,8 +115,14 @@ defmodule ArangoDB.Ecto.Adapter do
   # Helpers
   #
 
+  #
+  # insert
+
   defp to_result({:ok, doc}, :insert, fields), do:
     {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
+
+  #
+  # all
 
   defp to_result({:ok, %{"result" => []}}, :all, _),
     do: {0, []}
@@ -120,6 +134,9 @@ defmodule ArangoDB.Ecto.Adapter do
     result
   end
 
+  #
+  # update_all
+
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :update_all, _),
     do: {count, []}
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, :update_all, {fields, process}),
@@ -127,6 +144,12 @@ defmodule ArangoDB.Ecto.Adapter do
 
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :delete_all, _),
     do: {count, nil}
+
+  #
+  # delete
+
+  defp to_result({:ok, _}, :delete, _), do:
+    {:ok, []}
 
   defp to_result({:error, err}, _, _),
     do: raise err["errorMessage"]
