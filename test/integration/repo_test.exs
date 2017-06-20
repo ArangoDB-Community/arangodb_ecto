@@ -373,20 +373,19 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{_key: ^id3, title: nil, visits: 11} = p3
   end
 
-  # TODO
-#  @tag :returning
-#  test "update all with returning without schema" do
-#    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
-#    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
-#    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
-#
-#    assert {3, posts} = TestRepo.update_all("posts", [set: [title: "x"]], returning: [:_key, :title])
-#
-#    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
-#    assert p1 == %{_key: id1, title: "x"}
-#    assert p2 == %{_key: id2, title: "x"}
-#    assert p3 == %{_key: id3, title: "x"}
-#  end
+  @tag :returning
+  test "update all with returning without schema" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+
+    assert {3, posts} = TestRepo.update_all("posts", [set: [title: "x"]], returning: [:_key, :title])
+
+    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
+    assert p1 == %{_key: id1, title: "x"}
+    assert p2 == %{_key: id2, title: "x"}
+    assert p3 == %{_key: id3, title: "x"}
+  end
 
   test "update all with filter" do
     assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
@@ -479,21 +478,20 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{_key: ^id3, title: "3"} = p3
   end
 
-  # TODO
-#  @tag :returning
-#  test "delete all with returning without schema" do
-#    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
-#    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
-#    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
-#
-#    assert {3, posts} = TestRepo.delete_all("posts", returning: [:_key, :title])
-#    IO.puts "Posts #{inspect(posts)}"
-#
-#    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
-#    assert p1 == %{_key: id1, title: "1"}
-#    assert p2 == %{_key: id2, title: "2"}
-#    assert p3 == %{_key: id3, title: "3"}
-#  end
+  @tag :returning
+  test "delete all with returning without schema" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+
+    assert {3, posts} = TestRepo.delete_all("posts", returning: [:_key, :title])
+    IO.puts "Posts #{inspect(posts)}"
+
+    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
+    assert p1 == %{_key: id1, title: "1"}
+    assert p2 == %{_key: id2, title: "2"}
+    assert p3 == %{_key: id3, title: "3"}
+  end
 
   test "delete all with filter" do
     assert %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
@@ -520,5 +518,141 @@ defmodule Ecto.Integration.RepoTest do
   test "virtual field" do
     assert %Post{_key: key} = TestRepo.insert!(%Post{title: "1", text: "hai"})
     assert TestRepo.get(Post, key).temp == "temp"
+  end
+
+  ## Query syntax
+
+  test "query select expressions" do
+    %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+
+    assert [{"1", "hai"}] ==
+           TestRepo.all(from p in Post, select: {p.title, p.text})
+
+    assert [["1", "hai"]] ==
+           TestRepo.all(from p in Post, select: [p.title, p.text])
+
+    assert [%{:title => "1", 3 => "hai", "text" => "hai"}] ==
+           TestRepo.all(from p in Post, select: %{
+             :title => p.title,
+             "text" => p.text,
+             3 => p.text
+           })
+
+    assert [%{:title => "1", "1" => "hai", "text" => "hai"}] ==
+           TestRepo.all(from p in Post, select: %{
+             :title  => p.title,
+             p.title => p.text,
+             "text"  => p.text
+           })
+  end
+
+  test "query select map update" do
+    %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+
+    assert [%Post{:title => "new title", text: "hai"}] =
+           TestRepo.all(from p in Post, select: %{p | title: "new title"})
+
+    assert_raise KeyError, fn ->
+      TestRepo.all(from p in Post, select: %{p | unknown: "new title"})
+    end
+
+    assert_raise BadMapError, fn ->
+      TestRepo.all(from p in Post, select: %{p.title | title: "new title"})
+    end
+  end
+
+  test "query select take with structs" do
+    %{_key: pid1} = TestRepo.insert!(%Post{title: "1"})
+    %{_key: pid2} = TestRepo.insert!(%Post{title: "2"})
+    %{_key: pid3} = TestRepo.insert!(%Post{title: "3"})
+
+    [p1, p2, p3] = Post |> select([p], struct(p, [:title])) |> order_by([:title]) |> TestRepo.all
+    refute p1._key
+    assert p1.title == "1"
+    assert match?(%Post{}, p1)
+    refute p2._key
+    assert p2.title == "2"
+    assert match?(%Post{}, p2)
+    refute p3._key
+    assert p3.title == "3"
+    assert match?(%Post{}, p3)
+
+    [p1, p2, p3] = Post |> select([:_key]) |> order_by([:_key]) |> TestRepo.all
+    assert %Post{_key: ^pid1} = p1
+    assert %Post{_key: ^pid2} = p2
+    assert %Post{_key: ^pid3} = p3
+  end
+
+  test "query select take with maps" do
+    %{_key: pid1} = TestRepo.insert!(%Post{title: "1"})
+    %{_key: pid2} = TestRepo.insert!(%Post{title: "2"})
+    %{_key: pid3} = TestRepo.insert!(%Post{title: "3"})
+
+    [p1, p2, p3] = "posts" |> select([p], map(p, [:title])) |> order_by([:title]) |> TestRepo.all
+    assert p1 == %{title: "1"}
+    assert p2 == %{title: "2"}
+    assert p3 == %{title: "3"}
+
+    [p1, p2, p3] = "posts" |> select([:_key]) |> order_by([:_key]) |> TestRepo.all
+    assert p1 == %{_key: pid1}
+    assert p2 == %{_key: pid2}
+    assert p3 == %{_key: pid3}
+  end
+
+  test "query select take with assocs" do
+    %{_key: pid} = TestRepo.insert!(%Post{title: "post"})
+    TestRepo.insert!(%Comment{post__key: pid, text: "comment"})
+    fields = [:_key, :title, comments: [:text, :post__key]]
+
+    [p] = Post |> preload(:comments) |> select([p], ^fields) |> TestRepo.all
+    assert %Post{title: "post"} = p
+    assert [%Comment{text: "comment"}] = p.comments
+
+    [p] = Post |> preload(:comments) |> select([p], struct(p, ^fields)) |> TestRepo.all
+    assert %Post{title: "post"} = p
+    assert [%Comment{text: "comment"}] = p.comments
+
+    [p] = Post |> preload(:comments) |> select([p], map(p, ^fields)) |> TestRepo.all
+    assert p == %{_key: pid, title: "post", comments: [%{text: "comment", post__key: pid}]}
+  end
+
+  test "query select take with single nil column" do
+    %Post{} = TestRepo.insert!(%Post{title: "1", counter: nil})
+    assert %{counter: nil} =
+           TestRepo.one(from p in Post, where: p.title == "1", select: [:counter])
+  end
+
+  test "query select take with nil assoc" do
+    %{_key: cid} = TestRepo.insert!(%Comment{text: "comment"})
+    fields = [:_key, :text, post: [:title]]
+
+    [c] = Comment |> preload(:post) |> select([c], ^fields) |> TestRepo.all
+    assert %Comment{_key: ^cid, text: "comment", post: nil} = c
+
+    [c] = Comment |> preload(:post) |> select([c], struct(c, ^fields)) |> TestRepo.all
+    assert %Comment{_key: ^cid, text: "comment", post: nil} = c
+
+    [c] = Comment |> preload(:post) |> select([c], map(c, ^fields)) |> TestRepo.all
+    assert c == %{_key: cid, text: "comment", post: nil}
+  end
+
+  test "query where interpolation" do
+    post1 = TestRepo.insert!(%Post{text: "x", title: "hello"})
+    post2 = TestRepo.insert!(%Post{text: "y", title: "goodbye"})
+
+    assert [post1, post2] == Post |> where([], []) |> TestRepo.all |> Enum.sort_by(& &1._key)
+    assert [post1]        == Post |> where([], [title: "hello"]) |> TestRepo.all
+    assert [post1]        == Post |> where([], [title: "hello", _key: ^post1._key]) |> TestRepo.all
+
+    params0 = []
+    params1 = [title: "hello"]
+    params2 = [title: "hello", _key: post1._key]
+    assert [post1, post2]  == (from Post, where: ^params0) |> TestRepo.all |> Enum.sort_by(& &1._key)
+    assert [post1]         == (from Post, where: ^params1) |> TestRepo.all
+    assert [post1]         == (from Post, where: ^params2) |> TestRepo.all
+
+    post3 = TestRepo.insert!(%Post{text: "y", title: "goodbye", uuid: nil})
+    params3 = [title: "goodbye", uuid: post3.uuid]
+    assert [post3] == (from Post, where: ^params3) |> TestRepo.all
   end
 end

@@ -207,14 +207,22 @@ defmodule ArangoDB.Ecto.Adapter do
   defp process_document(document, fields),
     do: process_document(document, fields, fn _, v, _ -> v end)
 
-  defp process_document(document, [{:&, _, _}] = fields, process) do
+  defp process_document(doc, fields, process) do
     fields
-    |> Enum.map(&process.(&1, document, nil))
+    |> Enum.map(&process_field(&1, doc, process))
   end
 
-  defp process_document(document, fields, process) do
-    fields
-    |> Enum.map(&process.(&1, Map.get(document, field_name(&1)), nil))
+  defp process_field(field, doc, process) when is_atom(field),
+    do: process.(field, Map.get(doc, Atom.to_string(field)), nil)
+  defp process_field({{:., _, [{:&, _, _}, field_name]}, _, []} = field, doc, process),
+   do: process.(field, Map.get(doc, Atom.to_string(field_name)), nil)
+  defp process_field({:&, _, [ix, fields, _]} = field, doc, process) do
+    string_fields = Enum.map(fields, &to_string/1)
+    doc = Enum.filter_map(doc,
+                          fn {n, _} -> n in string_fields end,
+                          fn {n,v} -> {String.to_atom(n), v} end)
+      |> Enum.into(%{})
+    process.(field, doc, nil)
   end
 
   defp field_name({{:., _, [{:&, _, _}, field]}, _, []}), do: Atom.to_string(field)

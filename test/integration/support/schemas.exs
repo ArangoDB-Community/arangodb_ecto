@@ -73,8 +73,8 @@ defmodule Ecto.Integration.Comment do
   schema "comments" do
     field :_rev, :binary, read_after_writes: true
     field :text, :string
-    belongs_to :post, Ecto.Integration.Post
-    belongs_to :author, Ecto.Integration.User
+    belongs_to :post, Ecto.Integration.Post, foreign_key: :post__key
+    belongs_to :author, Ecto.Integration.User, foreign_key: :user__key
     #has_one :post_permalink, through: [:post, :permalink]
   end
 
