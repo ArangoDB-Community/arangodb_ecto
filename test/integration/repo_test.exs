@@ -316,7 +316,6 @@ defmodule Ecto.Integration.RepoTest do
     refute TestRepo.get(Custom, custom._key)
 
     uuid = Ecto.UUID.generate
-    IO.puts inspect(uuid)
     assert {2, nil} = TestRepo.insert_all(Custom, [%{uuid: uuid}, %{_key: custom._key}])
     assert [%Custom{_key: key2, uuid: nil},
             %Custom{_key: key1, uuid: ^uuid}] = Enum.sort_by(TestRepo.all(Custom), & &1.uuid)
@@ -356,18 +355,14 @@ defmodule Ecto.Integration.RepoTest do
 
     assert {3, posts} = TestRepo.update_all(Post, [set: [title: "x"]], returning: true)
 
-    res = Enum.sort_by(posts, & &1._key)
-    IO.puts inspect(res)
-    [p1, p2, p3] = res
+    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
     assert %Post{_key: ^id1, title: "x"} = p1
     assert %Post{_key: ^id2, title: "x"} = p2
     assert %Post{_key: ^id3, title: "x"} = p3
 
     assert {3, posts} = TestRepo.update_all(Post, [set: [visits: 11]], returning: [:_key, :visits])
 
-    res = Enum.sort_by(posts, & &1._key)
-    IO.puts inspect(res)
-    [p1, p2, p3] = res
+    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
     assert %Post{_key: ^id1, title: nil, visits: 11} = p1
     assert %Post{_key: ^id2, title: nil, visits: 11} = p2
     assert %Post{_key: ^id3, title: nil, visits: 11} = p3
@@ -485,7 +480,6 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
 
     assert {3, posts} = TestRepo.delete_all("posts", returning: [:_key, :title])
-    IO.puts "Posts #{inspect(posts)}"
 
     [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
     assert p1 == %{_key: id1, title: "1"}

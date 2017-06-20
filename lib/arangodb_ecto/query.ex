@@ -131,9 +131,7 @@ defmodule ArangoDB.Ecto.Query do
     do: []
   defp returning(version, query, sources) do
     {source, _, schema} = elem(sources, 0)
-    res = select(query, {{source, version, schema}})
-    IO.puts "Returning: #{inspect res}"
-    res
+    select(query, {{source, version, schema}})
   end
 
   defp select(%Query{select: nil, distinct: distinct, from: from} = query, sources),

@@ -55,8 +55,6 @@ defmodule ArangoDB.Ecto.Adapter do
   @spec prepare(atom :: :all | :update_all | :delete_all, query :: Ecto.Query.t) ::
           {:cache, prepared} | {:nocache, prepared}
   def prepare(cmd, query) do
-    #IO.puts "prepare(#{inspect atom}, #{inspect query, structs: false})"
-    #raise "prepare is not yet implemented"
     aql = apply(ArangoDB.Ecto.Query, cmd, [query])
     {:nocache, {cmd, aql}}
   end
@@ -150,11 +148,8 @@ defmodule ArangoDB.Ecto.Adapter do
     do: {0, []}
   defp to_result({:ok, %{"hasMore" => true}}, :all, _),
     do: raise "Query resulted in more entries than could be returned in a single batch, but cursors are not yet supported."
-  defp to_result({:ok, %{"result" => docs}}, :all, {fields, process}) do
-    result = {length(docs), Enum.map(docs, &process_document(&1, fields, process))}
-    IO.puts "Returned documents: #{inspect result}"
-    result
-  end
+  defp to_result({:ok, %{"result" => docs}}, :all, {fields, process}),
+    do: {length(docs), Enum.map(docs, &process_document(&1, fields, process))}
 
   #
   # update_all / delete_all
