@@ -107,6 +107,14 @@ defmodule ArangoDB.Ecto.Adapter do
 
   @spec update(repo, schema_meta, fields, filters, returning, options) ::
           {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
+  def update(repo, %{source: {prefix, collection}}, fields, [{:_key, key}], returning, options) do
+    document = Enum.into(fields, %{})
+    old = %{_key: key, _id: "#{collection}/#{key}"}
+    Logger.debug("Updating document #{inspect old} to: #{inspect document}")
+    Utils.get_endpoint(repo, options, prefix)
+    |> Arangoex.Document.update(old, document, [])
+    |> to_result(:update, returning)
+  end
   def update(repo, schema_meta, fields, filters, returning, options) do
     raise "update is not yet implemented"
   end
@@ -116,10 +124,10 @@ defmodule ArangoDB.Ecto.Adapter do
   #
 
   #
-  # insert
+  # insert / update
 
-  defp to_result({:ok, doc}, :insert, fields), do:
-    {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
+  defp to_result({:ok, doc}, cmd, fields) when cmd in [:insert, :update],
+    do: {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
 
   #
   # all

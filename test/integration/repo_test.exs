@@ -67,4 +67,52 @@ defmodule Ecto.Integration.RepoTest do
     assert catch_error(TestRepo.update(changeset, prefix: "oops"))
     assert catch_error(TestRepo.delete(changeset, prefix: "oops"))
   end
+
+  test "insert and update with changeset" do
+    # On insert we merge the fields and changes
+    changeset = Ecto.Changeset.cast(%Post{text: "x", title: "wrong"},
+                                    %{"title" => "hello", "temp" => "unknown"}, ~w(title temp))
+
+    post = TestRepo.insert!(changeset)
+    assert %Post{text: "x", title: "hello", temp: "unknown"} = post
+    assert %Post{text: "x", title: "hello", temp: "temp"} = TestRepo.get!(Post, post._key)
+
+    # On update we merge only fields, direct schema changes are discarded
+    changeset = Ecto.Changeset.cast(%{post | text: "y"},
+                                    %{"title" => "world", "temp" => "unknown"}, ~w(title temp))
+
+    assert %Post{text: "y", title: "world", temp: "unknown"} = TestRepo.update!(changeset)
+    assert %Post{text: "x", title: "world", temp: "temp"} = TestRepo.get!(Post, post._key)
+  end
+
+  test "insert and update with empty changeset" do
+    # On insert we merge the fields and changes
+    changeset = Ecto.Changeset.cast(%Post{}, %{}, ~w())
+    assert %Post{} = post = TestRepo.insert!(changeset)
+
+    # Assert we can update the same value twice,
+    # without changes, without triggering stale errors.
+    changeset = Ecto.Changeset.cast(post, %{}, ~w())
+    assert TestRepo.update!(changeset) == post
+    assert TestRepo.update!(changeset) == post
+  end
+
+  @tag :read_after_writes
+  test "insert and update with changeset read after writes" do
+    defmodule RAW do
+      use ArangoDB.Ecto.Schema
+
+      schema "comments" do
+        field :text, :string
+        field :_rev, :binary, read_after_writes: true
+      end
+    end
+
+    changeset = Ecto.Changeset.cast(struct(RAW, %{}), %{}, ~w())
+    assert %{_key: cid, _rev: rev1} = raw = TestRepo.insert!(changeset)
+
+    changeset = Ecto.Changeset.cast(raw, %{"text" => "0"}, ~w(text))
+    assert %{_key: ^cid, _rev: rev2, text: "0"} = TestRepo.update!(changeset)
+    assert rev1 != rev2
+  end
 end
