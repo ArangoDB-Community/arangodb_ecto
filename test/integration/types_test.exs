@@ -58,22 +58,21 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     ints = [1, 2, 3]
     tag = TestRepo.insert!(%Tag{ints: ints})
 
-    #assert TestRepo.all(from t in Tag, where: t.ints == ^[], select: t.ints) == []
-    #assert TestRepo.all(from t in Tag, where: t.ints == ^[1, 2, 3], select: t.ints) == [ints]
+    assert TestRepo.all(from t in Tag, where: t.ints == ^[], select: t.ints) == []
+    assert TestRepo.all(from t in Tag, where: t.ints == ^[1, 2, 3], select: t.ints) == [ints]
 
     # Both sides interpolation
-    #assert TestRepo.all(from t in Tag, where: ^"b" in ^["a", "b", "c"], select: t.ints) == [ints]
-    #assert TestRepo.all(from t in Tag, where: ^"b" in [^"a", ^"b", ^"c"], select: t.ints) == [ints]
+    assert TestRepo.all(from t in Tag, where: ^"b" in ^["a", "b", "c"], select: t.ints) == [ints]
+    assert TestRepo.all(from t in Tag, where: ^"b" in [^"a", ^"b", ^"c"], select: t.ints) == [ints]
 
     # Querying
-    #assert TestRepo.all(from t in Tag, where: t.ints == [1, 2, 3], select: t.ints) == [ints]
-    #assert TestRepo.all(from t in Tag, where: 0 in t.ints, select: t.ints) == []
-    #assert TestRepo.all(from t in Tag, where: 1 in t.ints, select: t.ints) == [ints]
+    assert TestRepo.all(from t in Tag, where: t.ints == [1, 2, 3], select: t.ints) == [ints]
+    assert TestRepo.all(from t in Tag, where: 0 in t.ints, select: t.ints) == []
+    assert TestRepo.all(from t in Tag, where: 1 in t.ints, select: t.ints) == [ints]
 
-    # TODO
     # Update
     tag = TestRepo.update!(Ecto.Changeset.change tag, ints: [3, 2, 1])
-    #assert TestRepo.get!(Tag, tag._key).ints == [3, 2, 1]
+    assert TestRepo.get!(Tag, tag._key).ints == [3, 2, 1]
 
     # Update all
     {1, _} = TestRepo.update_all(Tag, push: [ints: 0])
