@@ -157,18 +157,12 @@ defmodule ArangoDB.Ecto.Adapter do
   end
 
   #
-  # update_all
+  # update_all / delete_all
 
-  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :update_all, x),
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, cmd, x) when cmd in [:update_all, :delete_all],
     do: {count, nil}
-  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, :update_all, {fields, process}),
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, cmd, {fields, process})  when cmd in [:update_all, :delete_all],
     do: {count, Enum.map(docs, &process_document(&1, fields, process))}
-
-  #
-  # delete_all
-
-  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :delete_all, _),
-    do: {count, nil}
 
   #
   # insert_all

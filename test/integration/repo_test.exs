@@ -433,4 +433,92 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{visits: 1} = TestRepo.get(Post, id1)
     assert %Post{visits: 2} = TestRepo.get(Post, id2)
   end
+
+  @tag :id_type
+  test "update all with casting and dumping on _key type field" do
+    assert %Post{_key: key} = TestRepo.insert!(%Post{})
+    counter = String.to_integer(key)
+    assert {1, nil} = TestRepo.update_all(Post, set: [counter: to_string(counter)])
+    assert %Post{counter: ^counter} = TestRepo.get(Post, key)
+  end
+
+  test "update all with casting and dumping" do
+    text = "hai"
+    datetime = ~N[2014-01-16 20:26:51.000000]
+    assert %Post{_key: key} = TestRepo.insert!(%Post{})
+
+    assert {1, nil} = TestRepo.update_all(Post, set: [text: text, inserted_at: datetime])
+    assert %Post{text: "hai", inserted_at: ^datetime} = TestRepo.get(Post, key)
+  end
+
+  test "delete all" do
+    assert %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+
+    assert {3, nil} = TestRepo.delete_all(Post, returning: false)
+    assert [] = TestRepo.all(Post)
+  end
+
+  @tag :invalid_prefix
+  test "delete all with invalid prefix" do
+    assert catch_error(TestRepo.delete_all(Post, prefix: "oops"))
+  end
+
+  @tag :returning
+  test "delete all with returning with schema" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+
+    assert {3, posts} = TestRepo.delete_all(Post, returning: true)
+
+    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
+    assert %Post{_key: ^id1, title: "1"} = p1
+    assert %Post{_key: ^id2, title: "2"} = p2
+    assert %Post{_key: ^id3, title: "3"} = p3
+  end
+
+  # TODO
+#  @tag :returning
+#  test "delete all with returning without schema" do
+#    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+#    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+#    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+#
+#    assert {3, posts} = TestRepo.delete_all("posts", returning: [:_key, :title])
+#    IO.puts "Posts #{inspect(posts)}"
+#
+#    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
+#    assert p1 == %{_key: id1, title: "1"}
+#    assert p2 == %{_key: id2, title: "2"}
+#    assert p3 == %{_key: id3, title: "3"}
+#  end
+
+  test "delete all with filter" do
+    assert %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+
+    query = from(p in Post, where: p.title == "1" or p.title == "2")
+    assert {2, nil} = TestRepo.delete_all(query)
+    assert [%Post{}] = TestRepo.all(Post)
+  end
+
+  test "delete all no entries" do
+    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+
+    query = from(p in Post, where: p.title == "4")
+    assert {0, nil} = TestRepo.delete_all(query)
+    assert %Post{title: "1"} = TestRepo.get(Post, id1)
+    assert %Post{title: "2"} = TestRepo.get(Post, id2)
+    assert %Post{title: "3"} = TestRepo.get(Post, id3)
+  end
+
+  test "virtual field" do
+    assert %Post{_key: key} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert TestRepo.get(Post, key).temp == "temp"
+  end
 end
