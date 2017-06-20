@@ -76,8 +76,12 @@ defmodule ArangoDB.Ecto.Adapter do
 
   @spec insert_all(repo, schema_meta, header :: [atom], [fields], on_conflict, returning, options) ::
           {integer, [[term]] | nil} | no_return
-  def insert_all(repo, schema_meta, header, list, on_conflict, returning, options) do
-    raise "insert_all is not yet implemented"
+  def insert_all(repo, %{source: {prefix, collection}}, header, fields, on_conflict, returning, options) do
+    docs = build_documents(fields)
+    Logger.debug("Inserting documents #{inspect docs} into collection #{collection}")
+    Utils.get_endpoint(repo, options, prefix)
+    |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, [])
+    |> to_result(:insert_all, returning)
   end
 
   @spec insert(repo, schema_meta, fields, on_conflict, returning, options) ::
@@ -130,6 +134,12 @@ defmodule ArangoDB.Ecto.Adapter do
     do: {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
 
   #
+  # delete
+
+  defp to_result({:ok, _}, :delete, _), do:
+    {:ok, []}
+
+  #
   # all
 
   defp to_result({:ok, %{"result" => []}}, :all, _),
@@ -150,15 +160,17 @@ defmodule ArangoDB.Ecto.Adapter do
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, :update_all, {fields, process}),
     do: {count, Enum.map(docs, &process_document(&1, fields, process))}
 
+  #
+  # delete_all
+
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, :delete_all, _),
     do: {count, nil}
 
   #
-  # delete
+  # insert_all
 
-  defp to_result({:ok, _}, :delete, _), do:
-    {:ok, []}
-
+  defp to_result(docs, :insert_all, returning) when is_list(docs),
+    do: handle_insert_result(docs, returning)
 
   #
   # errors
@@ -168,6 +180,25 @@ defmodule ArangoDB.Ecto.Adapter do
 
   defp to_result({:error, err}, _, _),
     do: raise err["errorMessage"]
+
+  defp build_documents(fields) when is_list(fields) do
+    Enum.map(fields, fn
+      %{} = doc -> doc
+      doc when is_list(doc) -> Enum.into(doc, %{})
+     end)
+  end
+
+  defp handle_insert_result(docs, returning) when is_list(docs) do
+    errors = Enum.filter_map(docs, &match?({:error, _}, &1), fn {_, err} -> err["errorMessage"] end)
+    if (errors != []) do
+      raise Enum.join(["Errors occured when inserting documents: " | errors], "\n")
+    else
+      process_documents(docs, returning)
+    end
+  end
+
+  def process_documents(docs, []),
+    do: {length(docs), nil}
 
   defp process_document(document, [{:&, _, _}] = fields, process) do
     fields

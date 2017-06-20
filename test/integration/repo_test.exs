@@ -255,4 +255,24 @@ defmodule Ecto.Integration.RepoTest do
     assert_raise Ecto.NoResultsError, fn -> query |> first |> TestRepo.one! end
     assert_raise Ecto.NoResultsError, fn -> query |> last |> TestRepo.one! end
   end
+
+  test "insert all" do
+    assert {2, nil} = TestRepo.insert_all("comments", [[text: "1"], %{text: "2"}])
+    assert {2, nil} = TestRepo.insert_all({"comments", Comment}, [[text: "3"], %{text: "4"}])
+    assert [%Comment{text: "1"},
+            %Comment{text: "2"},
+            %Comment{text: "3"},
+            %Comment{text: "4"}] = TestRepo.all(Comment |> order_by(:text))
+
+    assert {2, nil} = TestRepo.insert_all(Post, [[], []])
+    assert [%Post{}, %Post{}] = TestRepo.all(Post)
+
+    assert {0, nil} = TestRepo.insert_all("posts", [])
+    assert {0, nil} = TestRepo.insert_all({"posts", Post}, [])
+  end
+
+  @tag :invalid_prefix
+  test "insert all with invalid prefix" do
+    assert catch_error(TestRepo.insert_all(Post, [[], []], prefix: "oops"))
+  end
 end
