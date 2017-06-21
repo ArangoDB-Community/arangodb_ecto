@@ -162,8 +162,8 @@ defmodule ArangoDB.Ecto.Query do
   defp select_all_fields(nil, _distinct, from, sources, query, _),
     do: get_document_name(query, sources, from)
 
-  defp select_all_fields(fields, distinct, _from, sources, query, idx) do
-    {source, name, schema} = elem(sources, idx)
+  defp select_all_fields(fields, _distinct, from, sources, query, idx) do
+    {_, name, schema} = elem(sources, idx)
     if is_nil(schema) and is_nil(fields) do
       get_document_name(query, sources, from)
     else
