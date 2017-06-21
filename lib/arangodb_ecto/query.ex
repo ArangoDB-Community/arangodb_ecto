@@ -1,9 +1,9 @@
 defmodule ArangoDB.Ecto.Query do
   @moduledoc """
-  This module converts Ecto SQL-like queries into AQL queries.
+  This module converts `Ecto.Query` structs into AQL queries.
 
-  So far it supports the "from", "where", "order by", "limit"
-  "offset" and "select" clauses.
+  So far it supports the `from`, `where`, `order_by`, `limit`
+  `offset` and `select` clauses.
   """
 
   alias Ecto.Query

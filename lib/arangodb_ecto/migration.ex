@@ -1,13 +1,30 @@
 defmodule ArangoDB.Ecto.Migration do
-  @moduledoc false
+  @moduledoc """
+  You can create and drop databases using `mix ecto.create` and `mix.ecto.drop`.
+
+  Migrations will work for creating tables (map to collections in ArangoDB) and
+  indexes. Column/field specifications are not supported by ArangoDB and will be
+  ommited when executing the migration.
+
+  This adapter provides support for `:hash`, `:skip_list` and `:fulltext` indexes, e.g.:
+  ```elixir
+  create index(:posts, [:visits], using: :skip_list)
+  ```
+  """
 
   require Logger
   alias ArangoDB.Ecto.Utils
 
   @behaviour Ecto.Adapter.Migration
 
+  @doc """
+  ArangoDB does not support DDL transactions, thus always returns `false`.
+  """
   def supports_ddl_transaction?, do: false
 
+  @doc """
+  Executes migration commands.
+  """
   def execute_ddl(repo, command, opts) do
     endpoint = Utils.get_endpoint(repo)
     not_exists_cmd = is_not_exists(command)
