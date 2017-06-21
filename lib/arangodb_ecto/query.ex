@@ -157,12 +157,12 @@ defmodule ArangoDB.Ecto.Query do
     [" RETURN ", distinct(distinct, sources, query), "{ ", field_names | " }"]
   end
 
-  defp select_all_fields([], distinct, from, sources, query, _),
+  defp select_all_fields([], _distinct, from, sources, query, _),
     do: get_document_name(query, sources, from)
-  defp select_all_fields(nil, distinct, from, sources, query, _),
+  defp select_all_fields(nil, _distinct, from, sources, query, _),
     do: get_document_name(query, sources, from)
 
-  defp select_all_fields(fields, distinct, from, sources, query, idx) do
+  defp select_all_fields(fields, distinct, _from, sources, query, idx) do
     {source, name, schema} = elem(sources, idx)
     if is_nil(schema) and is_nil(fields) do
       get_document_name(query, sources, from)
@@ -190,7 +190,7 @@ defmodule ArangoDB.Ecto.Query do
     [quoted_key, ": " | value]
   end
 
-  defp update_op_value(:set, _name, quoted_key, value, sources, query),
+  defp update_op_value(:set, _name, _quoted_key, value, sources, query),
     do: expr(value, sources, query)
 
   defp update_op_value(:inc, name, quoted_key, value, sources, query),
