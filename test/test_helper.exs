@@ -47,13 +47,11 @@ defmodule Ecto.Integration.Case do
 end
 
 # Load up the repository, start it, and run migrations
-{:ok, _} = ArangoDB.Ecto.ensure_all_started(TestRepo, :temporary)
 _   = ArangoDB.Ecto.storage_down(TestRepo.config)
 :ok = ArangoDB.Ecto.storage_up(TestRepo.config)
 {:ok, _pid} = TestRepo.start_link
 :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
 
-{:ok, _} = ArangoDB.Ecto.ensure_all_started(PoolRepo, :temporary)
 _   = ArangoDB.Ecto.storage_down(PoolRepo.config)
 :ok = ArangoDB.Ecto.storage_up(PoolRepo.config)
 {:ok, _pid} = PoolRepo.start_link
