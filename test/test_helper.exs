@@ -12,7 +12,7 @@ alias Ecto.Integration.TestRepo
 
 Application.put_env(:ecto, TestRepo,
   adapter: ArangoDB.Ecto,
-  endpoint: %Arangoex.Endpoint{database_name: "test"})
+  database_name: "test")
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
@@ -22,7 +22,7 @@ alias Ecto.Integration.PoolRepo
 
 Application.put_env(:ecto, PoolRepo,
   adapter: ArangoDB.Ecto,
-  endpoint: %Arangoex.Endpoint{database_name: "pool"})
+  database_name: "pool")
 
 defmodule Ecto.Integration.PoolRepo do
   use Ecto.Integration.Repo, otp_app: :ecto

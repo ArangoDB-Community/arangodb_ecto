@@ -9,7 +9,7 @@ defmodule ArangoDB.Ecto.Migration do
   def supports_ddl_transaction?, do: false
 
   def execute_ddl(repo, command, opts) do
-    endpoint = Utils.get_endpoint(repo, opts)
+    endpoint = Utils.get_endpoint(repo)
     not_exists_cmd = is_not_exists(command)
     result = execute(endpoint, command, opts)
     case result do

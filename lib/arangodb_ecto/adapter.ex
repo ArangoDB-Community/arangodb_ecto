@@ -64,18 +64,18 @@ defmodule ArangoDB.Ecto.Adapter do
           query: {:nocache, prepared} |
                  {:cached, (prepared -> :ok), cached} |
                  {:cache, (cached -> :ok), prepared}
-  def execute(repo, %{fields: fields, prefix: prefix}, {:nocache, {cmd, aql}}, params, process, options) do
+  def execute(repo, %{fields: fields, prefix: prefix}, {:nocache, {cmd, aql}}, params, process, _options) do
     Logger.debug(aql)
     cursor = make_cursor(aql, params)
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, options, prefix)
+    Utils.get_endpoint(repo, prefix)
     |> Arangoex.Cursor.cursor_create(cursor)
     |> to_result(cmd, {fields, process})
   end
 
   @spec insert_all(repo, schema_meta, header :: [atom], [fields], on_conflict, returning, options) ::
           {integer, [[term]] | nil} | no_return
-  def insert_all(repo, %{source: {prefix, collection}}, _header, fields, _on_conflict, returning, options) do
+  def insert_all(repo, %{source: {prefix, collection}}, _header, fields, _on_conflict, returning, _options) do
     docs = build_documents(fields)
     return_new = Enum.any?(returning, &not &1 in [:_id, :_key, :_rev])
     opts = if return_new,
@@ -83,29 +83,29 @@ defmodule ArangoDB.Ecto.Adapter do
       else: []
     # TODO - apply Arango specific options
     Logger.debug("Inserting documents #{inspect docs} into collection #{collection}")
-    Utils.get_endpoint(repo, options, prefix)
+    Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, opts)
     |> to_result(:insert_all, returning)
   end
 
   @spec insert(repo, schema_meta, fields, on_conflict, returning, options) ::
           {:ok, fields} | {:invalid, constraints} | no_return
-  def insert(repo, %{source: {prefix, collection}}, fields, _on_conflict, returning, options) do
+  def insert(repo, %{source: {prefix, collection}}, fields, _on_conflict, returning, _options) do
     document = Enum.into(fields, %{})
     Logger.debug("Inserting document #{inspect document} into collection #{collection}")
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, options, prefix)
+    Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, document, [])
     |> to_result(:insert, returning)
   end
 
   @spec delete(repo, schema_meta, filters, options) ::
           {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
-  def delete(repo, %{source: {prefix, collection}}, [{:_key, key}], options) do
+  def delete(repo, %{source: {prefix, collection}}, [{:_key, key}], _options) do
     Logger.debug("Deleting document with key #{key} from collection #{collection}")
     doc = %{_key: key, _id: "#{collection}/#{key}"}
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, options, prefix)
+    Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.delete(doc)
     |> to_result(:delete, [])
   end
@@ -116,12 +116,12 @@ defmodule ArangoDB.Ecto.Adapter do
 
   @spec update(repo, schema_meta, fields, filters, returning, options) ::
           {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
-  def update(repo, %{source: {prefix, collection}}, fields, [{:_key, key}], returning, options) do
+  def update(repo, %{source: {prefix, collection}}, fields, [{:_key, key}], returning, _options) do
     document = Enum.into(fields, %{})
     old = %{_key: key, _id: "#{collection}/#{key}"}
     Logger.debug("Updating document #{inspect old} to: #{inspect document}")
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, options, prefix)
+    Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.update(old, document, [])
     |> to_result(:update, returning)
   end

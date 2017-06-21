@@ -1,13 +1,9 @@
 defmodule ArangoDB.Ecto.Utils do
   @moduledoc false
 
-  def get_endpoint(repo, opts, prefix \\ nil) do
-    conf = repo.__config__
-    endpoint = Keyword.get(opts, :endpoint, conf[:endpoint])
-    case prefix do
-      nil -> endpoint
-      db when is_binary(db) -> %Arangoex.Endpoint{endpoint | :database_name => db}
-    end
-    #TODO: use options?
-  end
+  @spec get_endpoint(Ecto.Adapter.repo, String.t | nil) :: Arangoex.Endpoint.t
+  def get_endpoint(repo, prefix \\ nil)
+  def get_endpoint(repo, nil), do: repo.__endpoint__
+  def get_endpoint(repo, prefix) when is_binary(prefix),
+    do: %Arangoex.Endpoint{repo.__endpoint__ | :database_name => prefix}
 end

@@ -8,8 +8,8 @@ defmodule ArangoDB.Ecto do
 
   alias ArangoDB.Ecto.Utils
 
-  def truncate(repo, coll, opts \\ []) do
-    result = Utils.get_endpoint(repo, opts)
+  def truncate(repo, coll) do
+    result = Utils.get_endpoint(repo)
       |> Arangoex.Collection.truncate(%Arangoex.Collection{name: coll})
     case result do
       {:ok, _} -> :ok
@@ -23,9 +23,9 @@ defmodule ArangoDB.Ecto do
 
   defmacro __before_compile__(env) do
     config = Module.get_attribute(env.module, :config)
-    norm_config = normalize_config(config)
+    endpoint = struct(Arangoex.Endpoint, config)
     quote do
-      def __config__, do: unquote(Macro.escape(norm_config))
+      def __endpoint__, do: unquote(Macro.escape(endpoint))
     end
   end
 
@@ -40,11 +40,6 @@ defmodule ArangoDB.Ecto do
   defdelegate loaders(primitive_type, ecto_type), to: ArangoDB.Ecto.Adapter
   defdelegate prepare(atom, query), to: ArangoDB.Ecto.Adapter
   defdelegate update(repo, schema_meta, fields, filters, returning, options), to: ArangoDB.Ecto.Adapter
-
-  defp normalize_config(options) do
-    [endpoint: Keyword.get(options, :endpoint, %Arangoex.Endpoint{}),
-     db: Keyword.get(options, :database, "db")]
-  end
 
   @behaviour Ecto.Adapter.Migration
 
