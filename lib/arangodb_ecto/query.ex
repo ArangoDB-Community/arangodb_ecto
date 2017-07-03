@@ -279,6 +279,13 @@ defmodule ArangoDB.Ecto.Query do
     ["NOT (", expr(expr, sources, query), ?)]
   end
 
+  defp expr({:fragment, _, parts}, sources, query) do
+    Enum.map(parts, fn
+      {:raw, part}  -> part
+      {:expr, expr} -> expr(expr, sources, query)
+    end)
+  end
+  
   defp expr({:is_nil, _, [arg]}, sources, query) do
     [expr(arg, sources, query) | " == NULL"]
   end

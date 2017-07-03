@@ -87,7 +87,6 @@ end
 ```
 
 ## Features not yet implemented
-* fragments
 * subqueries
 * joins
 * on conflict

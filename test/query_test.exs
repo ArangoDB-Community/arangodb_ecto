@@ -48,6 +48,11 @@ defmodule ArangoDB.Ecto.Query.Test do
         "FOR u0 IN `users` FILTER ((u0.`name` == 'Joe') || (u0.`age` == 32)) RETURN u0"
     end
 
+    test "with fragments in where clause" do
+      assert aql(from o in "orders", where: fragment("?.price", o.item) > 10) =~
+        "FOR o0 IN `orders` FILTER (o0.`item`.price > 10) RETURN o0"
+    end
+
     test "with 'in' operator in where clause" do
       assert aql(from p in "posts", where: p.title in []) =~
         "FOR p0 IN `posts` FILTER (FALSE) RETURN p0"
