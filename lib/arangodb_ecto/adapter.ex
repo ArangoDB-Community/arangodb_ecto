@@ -20,6 +20,17 @@ defmodule ArangoDB.Ecto.Adapter do
   @typep repo :: Ecto.Adapter.repo
   @typep options :: Ecto.Adapter.options
 
+  def exec_query(repo, aql, vars) do
+    Logger.debug(aql)
+    cursor = make_cursor(aql, vars)
+    result = Utils.get_endpoint(repo)
+      |> Arangoex.Cursor.cursor_create(cursor)
+    case result do
+      {:ok, %{"result" => docs}} -> {:ok, docs}
+      {:error, err} -> {:error, err["errorMessage"]}
+    end
+  end
+  
   # Adapter callbacks
 
   def ensure_all_started(_repo, type),

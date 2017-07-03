@@ -14,6 +14,11 @@ defmodule Ecto.Integration.RepoTest do
     assert [] == TestRepo.all(from p in Post)
   end
 
+  test "query" do
+    TestRepo.insert!(%Post{title: "hello"})
+    assert {:ok, [%{"title" => "hello"}]} = ArangoDB.Ecto.query(TestRepo, "FOR p in posts RETURN p")
+  end
+
   test "fetch with in" do
     TestRepo.insert!(%Post{title: "hello"})
 

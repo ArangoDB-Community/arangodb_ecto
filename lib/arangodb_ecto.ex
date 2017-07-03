@@ -17,6 +17,10 @@ defmodule ArangoDB.Ecto do
     end
   end
 
+  def query(repo, aql, vars \\ []) do
+    ArangoDB.Ecto.Adapter.exec_query(repo, aql, vars)
+  end
+
   @behaviour Ecto.Adapter
 
   # Delegates for Adapter behaviour
