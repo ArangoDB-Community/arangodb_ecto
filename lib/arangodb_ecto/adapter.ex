@@ -164,7 +164,7 @@ defmodule ArangoDB.Ecto.Adapter do
   defp to_result({:ok, %{"hasMore" => true}}, :all, _),
     do: raise "Query resulted in more entries than could be returned in a single batch, but cursors are not yet supported."
   defp to_result({:ok, %{"result" => docs}}, :all, {fields, process}),
-    do: {length(docs), Enum.map(docs, &process_document(&1, fields, process))}
+    do: {length(docs), Enum.map(docs, &process_row(&1, fields, process))}
 
   #
   # update_all / delete_all
@@ -172,7 +172,7 @@ defmodule ArangoDB.Ecto.Adapter do
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, cmd, _) when cmd in [:update_all, :delete_all],
     do: {count, nil}
   defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, cmd, {fields, process})  when cmd in [:update_all, :delete_all],
-    do: {count, Enum.map(docs, &process_document(&1, fields, process))}
+    do: {count, Enum.map(docs, &process_row(&1, fields, process))}
 
   #
   # insert_all
@@ -210,30 +210,24 @@ defmodule ArangoDB.Ecto.Adapter do
 
   defp process_documents(docs, fields) do
     {length(docs), Enum.map(docs, fn
-                                   {:ok, {_ref, doc}} -> process_document(doc, fields)
-                                   {:ok, ref} -> process_document(ref, fields)
+                                   {:ok, {_ref, doc}} -> process_refdoc(doc, fields)
+                                   {:ok, doc} -> process_row(doc, fields, fn _, v, _ -> v end)
                                   end)}
   end
 
-  defp process_document(document, fields),
-    do: process_document(document, fields, fn _, v, _ -> v end)
-
-  defp process_document(doc, fields, process) do
+  defp process_refdoc(doc, fields) do
     fields
-    |> Enum.map(&process_field(&1, doc, process))
+    |> Enum.map(&Map.get(doc, Atom.to_string(&1)))
   end
 
-  defp process_field(field, doc, process) when is_atom(field),
-    do: process.(field, Map.get(doc, Atom.to_string(field)), nil)
-  defp process_field({{:., _, [{:&, _, _}, field_name]}, _, []} = field, doc, process),
-   do: process.(field, Map.get(doc, Atom.to_string(field_name)), nil)
-  defp process_field({:&, _, [_, fields, _]} = field, doc, process) do
-    string_fields = Enum.map(fields, &to_string/1)
-    doc = Enum.filter_map(doc,
-                          fn {n, _} -> n in string_fields end,
-                          fn {n,v} -> {String.to_atom(n), v} end)
-      |> Enum.into(%{})
-    process.(field, doc, nil)
+  defp process_row(row, fields, process) do
+    Enum.map_reduce(fields, row, fn
+      {:&, _, [_, _, counter]} = field, acc ->
+        {val, rest} = Enum.split(acc, counter)
+        {process.(field, val, nil), rest}
+      field, [h|t] ->
+        {process.(field, h, nil), t}
+    end) |> elem(0)
   end
 
   defp make_cursor(aql, []),

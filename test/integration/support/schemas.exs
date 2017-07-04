@@ -13,6 +13,7 @@ defmodule Ecto.Integration.User do
   @timestamps_opts [usec: true]
   schema "users" do
     field :name
+    field :age, :integer
     field :hobbies, {:array, :string}
     has_many :comments, Ecto.Integration.Comment, foreign_key: :author_id
     has_many :posts, Ecto.Integration.Post, foreign_key: :author_id

@@ -135,26 +135,18 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp select(%Query{select: nil, distinct: distinct, from: from} = query, sources),
-    do: select_fields([], distinct, from, sources, query)
+    do: [" RETURN []" ]
   defp select(%Query{select: %{fields: fields}, distinct: distinct, from: from} = query, sources),
     do: select_fields(fields, distinct, from, sources, query)
 
-  defp select_fields([], distinct, from, sources, query) do
-    {_, name} = get_source(query, sources, 0, from)
-    [" RETURN ", distinct(distinct, sources, query) | name]
-  end
-  defp select_fields([{:&, _, [_, nil, _]}], distinct, from, sources, query),
-    do: select_fields([], distinct, from, sources, query)
   defp select_fields(fields, distinct, from, sources, query) do
-    field_names = intersperse_map(fields, ", ", fn
-      {key, value} ->
-        [quote_name(key), ": ", expr(value, sources, query)]
-      {:&, _, [idx, fields, _]} ->
-        select_all_fields(fields, distinct, from, sources, query, idx)
+    values = intersperse_map(fields, ", ", fn
+      {_key, value} ->
+        [expr(value, sources, query)]
       value ->
-        [get_field_name(value), ": ", expr(value, sources, query)]
+        [expr(value, sources, query)]
     end)
-    [" RETURN ", distinct(distinct, sources, query), "{ ", field_names | " }"]
+    [" RETURN ", distinct(distinct, sources, query), "[ ", values | " ]"]
   end
 
   defp select_all_fields([], _distinct, from, sources, query, _),
@@ -217,11 +209,6 @@ defmodule ArangoDB.Ecto.Query do
     {expr || paren_expr(source, sources, query), name}
   end
 
-  defp get_field_name(atom) when is_atom(atom),
-    do: to_string(atom) |> quote_name
-  defp get_field_name({{:., _, [{:&, _, _}, field]}, _, []}),
-    do: quote_name(field)
-
   defp boolean(_name, [], _sources, _query), do: []
   defp boolean(name, [%{expr: expr, op: op} | query_exprs], sources, query) do
     [name,
@@ -273,6 +260,16 @@ defmodule ArangoDB.Ecto.Query do
   do
     {_, name, _} = elem(sources, idx)
     [name, ?. | quote_name(field)]
+  end
+
+
+  defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
+    {source, name, schema} = elem(sources, idx)
+    if is_nil(schema) and is_nil(fields) do
+      error!(query, "ArangoDB does not support selecting all fields from #{source} without a schema. " <>
+                    "Please specify a schema or specify exactly which fields you want to select")
+    end
+    intersperse_map(fields, ", ", &[name, ?. | quote_name(&1)])
   end
 
   defp expr({:not, _, [expr]}, sources, query) do
