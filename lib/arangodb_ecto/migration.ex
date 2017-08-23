@@ -40,11 +40,16 @@ defmodule ArangoDB.Ecto.Migration do
   defp is_not_exists({:create_if_not_exists, _, _}), do: true
   defp is_not_exists(_), do: false
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name}, _}, _opts)
+  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, opts)
       when cmd in [:create, :create_if_not_exists]
   do
     # TODO: use table options
-    Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name})
+    collection_type = case options do
+      nil -> 2 # document collection
+      "edge" -> 3 # edge collection
+      _ -> raise "Invalid options value `#{options}`."
+    end
+    Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type})
   end
 
   defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, options)

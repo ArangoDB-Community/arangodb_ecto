@@ -48,5 +48,8 @@ defmodule Ecto.Integration.Migration do
       #add :item, :map
       #add :comment_id, references(:comments)
     end
+
+    create table(:customs_customs, options: "edge") do
+    end
   end
 end
