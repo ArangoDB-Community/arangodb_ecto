@@ -88,7 +88,13 @@ defmodule Ecto.Integration.Custom do
   use ArangoDB.Ecto.Schema
 
   schema "customs" do
+    field :_id, :binary_id, read_after_writes: true
     field :uuid, Ecto.UUID
+    many_to_many :customs, Ecto.Integration.Custom,
+      join_through: "customs_customs",
+      join_keys: [_from: :_id, _to: :_id],
+      on_delete: :delete_all,
+      on_replace: :delete
   end
 end
 

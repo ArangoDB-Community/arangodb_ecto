@@ -206,7 +206,8 @@ defmodule Ecto.Integration.RepoTest do
     custom = Ecto.put_meta(%Custom{}, source: "posts")
     custom = TestRepo.insert!(custom)
     key    = custom._key
-    assert %Custom{_key: ^key, __meta__: %{source: {nil, "posts"}}} =
+    id = "posts/#{key}"
+    assert %Custom{_id: ^id, _key: ^key, __meta__: %{source: {nil, "posts"}}} =
            TestRepo.get(from(c in {"posts", Custom}), key)
   end
 
@@ -653,5 +654,23 @@ defmodule Ecto.Integration.RepoTest do
     post3 = TestRepo.insert!(%Post{text: "y", title: "goodbye", uuid: nil})
     params3 = [title: "goodbye", uuid: post3.uuid]
     assert [post3] == (from Post, where: ^params3) |> TestRepo.all
+  end
+
+  test "many_to_many changeset assoc with self-referential binary_id" do
+    assoc_custom = TestRepo.insert!(%Custom{uuid: "1"})
+    custom = TestRepo.insert!(%Custom{customs: [assoc_custom], uuid: "2"})
+
+    custom = Custom |> TestRepo.get!(custom._key) |> TestRepo.preload(:customs)
+    assert [_] = custom.customs
+
+    custom =
+      custom
+      |> Ecto.Changeset.change(%{})
+      |> Ecto.Changeset.put_assoc(:customs, [])
+      |> TestRepo.update!
+    assert [] = custom.customs
+
+    custom = Custom |> TestRepo.get!(custom._key) |> TestRepo.preload(:customs)
+    assert [] = custom.customs
   end
 end
