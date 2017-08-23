@@ -55,17 +55,17 @@ defmodule ArangoDB.Ecto.Adapter do
   @spec dumpers(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
   def dumpers(:uuid, Ecto.UUID), do: [&{:ok, &1}]
-  def dumpers(:date, Date),
+  def dumpers(:date, type) when type in [:date, Date],
     do: [fn %Date{} = d -> {:ok, Date.to_iso8601(d)} end]
   def dumpers(:date, Ecto.Date),
     do: [fn d -> {:ok, Ecto.Date.to_iso8601(d)} end]
-  def dumpers(:utc_datetime, DateTime),
+  def dumpers(:utc_datetime, type) when type in [:utc_datetime, DateTime],
     do: [fn %DateTime{} = dt -> {:ok, DateTime.to_iso8601(dt)} end]
-  def dumpers(:naive_datetime, _type),
+  def dumpers(:naive_datetime, type) when type in [:naive_datetime, NaiveDateTime, Ecto.DateTime],
     do: [fn %NaiveDateTime{} = dt ->{:ok, NaiveDateTime.to_iso8601(dt)}
             %Ecto.DateTime{} = dt ->{:ok, Ecto.DateTime.to_iso8601(dt)}
          end]
-  def dumpers(_primitive, type), do: [type]
+  def dumpers(primitive, type), do: [type]
 
   @spec prepare(atom :: :all | :update_all | :delete_all, query :: Ecto.Query.t) ::
           {:cache, prepared} | {:nocache, prepared}
