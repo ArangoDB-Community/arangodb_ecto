@@ -2,7 +2,7 @@ defmodule ArangoDB.Ecto.Query.Test do
   use ExUnit.Case
   doctest ArangoDB.Ecto
 
-  alias Ecto.Integration.User
+  alias Ecto.Integration.{User, Post, Comment}
 
   import Ecto.Query
 
@@ -100,6 +100,13 @@ defmodule ArangoDB.Ecto.Query.Test do
       assert_raise Ecto.QueryError, ~r"offset can only be used in conjunction with limit", fn ->
         aql(from u in User, offset: 2)
       end
+    end
+
+    test "with join" do
+      assert aql(from c in Comment,
+                 join: p in Post, on: p._key == c.post__key,
+                 select: {p.title, c.text}) =~
+        "FOR c0 IN `comments` FOR p1 IN `posts` FILTER p1.`_key` == c0.`post__key` RETURN [ p1.`title`, c0.`text` ]"
     end
   end
 

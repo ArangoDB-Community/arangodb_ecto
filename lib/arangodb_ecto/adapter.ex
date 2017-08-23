@@ -65,7 +65,7 @@ defmodule ArangoDB.Ecto.Adapter do
     do: [fn %NaiveDateTime{} = dt ->{:ok, NaiveDateTime.to_iso8601(dt)}
             %Ecto.DateTime{} = dt ->{:ok, Ecto.DateTime.to_iso8601(dt)}
          end]
-  def dumpers(primitive, type), do: [type]
+  def dumpers(_primitive, type), do: [type]
 
   @spec prepare(atom :: :all | :update_all | :delete_all, query :: Ecto.Query.t) ::
           {:cache, prepared} | {:nocache, prepared}

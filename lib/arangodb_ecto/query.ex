@@ -7,7 +7,7 @@ defmodule ArangoDB.Ecto.Query do
   """
 
   alias Ecto.Query
-  alias Ecto.Query.{BooleanExpr, QueryExpr}
+  alias Ecto.Query.{JoinExpr, BooleanExpr, QueryExpr}
 
   @doc """
   Creates an AQL query to fetch all entries from the data store matching the given query.
@@ -16,12 +16,13 @@ defmodule ArangoDB.Ecto.Query do
     sources = create_names(query)
 
     from     = from(query, sources)
+    join     = join(query, sources)
     where    = where(query, sources)
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
     select = select(query, sources)
 
-    IO.iodata_to_binary([from, where, order_by, offset_and_limit, select])
+    IO.iodata_to_binary([from, join, where, order_by, offset_and_limit, select])
   end
 
   @doc """
@@ -31,13 +32,14 @@ defmodule ArangoDB.Ecto.Query do
     sources = create_names(query)
 
     from     = from(query, sources)
+    join     = join(query, sources)
     where    = where(query, sources)
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
     remove   = remove(query, sources)
     return = returning("OLD", query, sources)
 
-    IO.iodata_to_binary([from, where, order_by, offset_and_limit, remove, return])
+    IO.iodata_to_binary([from, join, where, order_by, offset_and_limit, remove, return])
   end
 
   @doc """
@@ -47,13 +49,14 @@ defmodule ArangoDB.Ecto.Query do
     sources = create_names(query)
 
     from     = from(query, sources)
+    join     = join(query, sources)
     where    = where(query, sources)
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
     update   = update(query, sources)
     return = returning("NEW", query, sources)
 
-    IO.iodata_to_binary([from, where, order_by, offset_and_limit, update, return])
+    IO.iodata_to_binary([from, join, where, order_by, offset_and_limit, update, return])
   end
 
   #
@@ -83,6 +86,17 @@ defmodule ArangoDB.Ecto.Query do
   defp from(%Query{from: from} = query, sources) do
     {coll, name} = get_source(query, sources, 0, from)
     ["FOR ", name, " IN " | coll]
+  end
+
+  defp join(%Query{joins: []}, _sources), do: []
+  defp join(%Query{joins: joins} = query, sources) do
+    [?\s | intersperse_map(joins, ?\s, fn
+      %JoinExpr{on: %QueryExpr{expr: expr}, qual: qual, ix: ix, source: source} ->
+        {join, name} = get_source(query, sources, ix, source)
+        #[join_qual(qual), join, " AS ", name, " FILTER " | expr(expr, sources, query)]
+        if (qual != :inner), do: raise "Only inner joins are supported."
+        ["FOR ", name, " IN ", join, " FILTER " | expr(expr, sources, query)]
+    end)]
   end
 
   defp where(%Query{wheres: wheres} = query, sources) do
