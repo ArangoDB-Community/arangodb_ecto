@@ -55,6 +55,7 @@ defmodule ArangoDB.Ecto.Adapter do
   @spec dumpers(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
   def dumpers(:uuid, Ecto.UUID), do: [&{:ok, &1}]
+  def dumpers({:in, sub}, {:in, sub}), do: [{:array, sub}]
   def dumpers(:date, type) when type in [:date, Date],
     do: [fn %Date{} = d -> {:ok, Date.to_iso8601(d)} end]
   def dumpers(:date, Ecto.Date),

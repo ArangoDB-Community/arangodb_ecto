@@ -315,8 +315,7 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp expr({:in, _, [left, {:^, _, [idx, length]}]}, sources, query) do
-    args = Enum.intersperse(Enum.map(idx+1..idx+length, &"@#{&1}"), ?,)
-    [expr(left, sources, query), " IN [", args, ?]]
+    [expr(left, sources, query), " IN @#{idx + 1}"]
   end
 
   defp expr({:in, _, [left, right]}, sources, query) do
@@ -351,6 +350,10 @@ defmodule ArangoDB.Ecto.Query do
 
   defp expr(literal, _sources, _query) when is_float(literal) do
     Float.to_string(literal)
+  end
+
+  defp expr(%Ecto.Query.Tagged{value: value, type: :binary_id}, sources, query) do
+    [expr(value, sources, query)]
   end
 
   defp expr(nil, _sources, _query),   do: "NULL"

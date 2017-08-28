@@ -76,7 +76,10 @@ defmodule ArangoDB.Ecto.Query.Test do
         "FOR p0 IN `posts` FILTER (p0.`title` IN ['1',@1,'3']) RETURN [ p0.`title` ]"
 
       assert aql(from p in "posts", where: p.title in ^["1", "hello", "3"], select: p.title) =~
-        "FOR p0 IN `posts` FILTER (p0.`title` IN [@1,@2,@3]) RETURN [ p0.`title` ]"
+        "FOR p0 IN `posts` FILTER (p0.`title` IN @1) RETURN [ p0.`title` ]"
+
+      assert aql(from p in "posts", where: p.title in ^["1", "hello", "3"] and p.text != ^"", select: p.title) =~
+        "FOR p0 IN `posts` FILTER (p0.`title` IN @1 && (p0.`text` != @2)) RETURN [ p0.`title` ]"
     end
 
     test "with order by clause" do
