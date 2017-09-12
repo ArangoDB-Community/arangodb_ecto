@@ -40,7 +40,7 @@ defmodule ArangoDB.Ecto.Migration do
   defp is_not_exists({:create_if_not_exists, _, _}), do: true
   defp is_not_exists(_), do: false
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, opts)
+  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, _opts)
       when cmd in [:create, :create_if_not_exists]
   do
     # TODO: use table options
@@ -52,10 +52,10 @@ defmodule ArangoDB.Ecto.Migration do
     Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type})
   end
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, options)
+  defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, _opts)
       when cmd in [:create, :create_if_not_exists]
   do
-    body = make_index(index, options)
+    body = make_index(index)
     Arangoex.Index.create_general(endpoint, collection, Map.put(body, :fields, fields))
   end
 
@@ -72,12 +72,16 @@ defmodule ArangoDB.Ecto.Migration do
   # Helpers
   #
 
-  defp make_index(%{where: where}, _) when where != nil,
+  defp make_index(%{where: where}) when where != nil,
     do: raise "{inspect __MODULE__} does not support conditional indices."
 
   # default to :hash when no index type is specified
-  defp make_index(%{using: nil} = index, options),
-    do: make_index(%Ecto.Migration.Index{index | using: :hash}, options)
+  defp make_index(%{using: nil} = index), do:
+    make_index(%Ecto.Migration.Index{index | using: :hash}, [])
+  defp make_index(%{using: type} = index) when is_atom(type), do:
+    make_index(index, [])
+  defp make_index(%{using: {type, opts}} = index) when is_atom(type) and is_list(opts), do:
+    make_index(%{index | using: type}, opts)
 
   defp make_index(%{using: :hash, unique: unique}, options) do
     %{type: "hash",
