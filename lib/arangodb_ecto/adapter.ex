@@ -50,6 +50,7 @@ defmodule ArangoDB.Ecto.Adapter do
   def loaders(:date, _type), do: [&load_date/1]
   def loaders(:utc_datetime, _type), do: [&load_utc_datetime/1]
   def loaders(:naive_datetime, _type), do: [&NaiveDateTime.from_iso8601/1]
+  def loaders(:float, _type), do: [&load_float/1]
   def loaders(_primitive, type), do: [type]
 
   @spec dumpers(primitive_type :: Ecto.Type.primitive, ecto_type :: Ecto.Type.t) ::
@@ -257,4 +258,7 @@ defmodule ArangoDB.Ecto.Adapter do
       {:error, _} -> :error
     end
   end
+
+  defp load_float(arg) when is_number(arg), do: {:ok, :erlang.float(arg)}
+  defp load_float(_), do: :error
 end

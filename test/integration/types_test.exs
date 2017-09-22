@@ -46,6 +46,12 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     assert [^datetime] = TestRepo.all(from u in User, where: u.inserted_at == ^datetime, select: u.inserted_at)
   end
 
+  test "float type conversion for values that can be encoded as integer" do
+    TestRepo.insert!(%Post{intensity: 10.0})
+
+    assert [10.0] = TestRepo.all(from p in Post, select: p.intensity)
+  end
+
   test "uuid types" do
     assert %Post{} = post = TestRepo.insert!(%Post{title: "bid test", uuid: Ecto.UUID.generate(), timeuuid: Ecto.UUID.generate()})
     uuid = post.uuid
