@@ -335,6 +335,8 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
     assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
 
+    assert {0, []} = TestRepo.update_all(from(p in Post, where: false), [set: [title: "x"]], returning: true)
+
     assert {3, nil} = TestRepo.update_all(Post, set: [title: "x"])
 
     assert %Post{title: "x"} = TestRepo.get(Post, id1)
