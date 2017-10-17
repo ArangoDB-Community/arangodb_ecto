@@ -291,10 +291,6 @@ defmodule ArangoDB.Ecto.Query do
     [expr(left, sources, query), " IN [", args, ?]]
   end
 
-  defp expr({:in, _, [_, {:^, _, [_, 0]}]}, _sources, _query) do
-    "FALSE"
-  end
-
   defp expr({:in, _, [left, {:^, _, [idx, _length]}]}, sources, query) do
     [expr(left, sources, query), " IN @#{idx + 1}"]
   end
