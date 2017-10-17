@@ -203,7 +203,9 @@ defmodule ArangoDB.Ecto.Adapter do
   end
 
   defp handle_insert_result(docs, returning) when is_list(docs) do
-    errors = Enum.filter_map(docs, &match?({:error, _}, &1), fn {_, err} -> err["errorMessage"] end)
+    errors = docs
+      |> Enum.filter(&match?({:error, _}, &1))
+      |> Enum.map(fn {_, err} -> err["errorMessage"] end)
     if (errors != []) do
       raise Enum.join(["Errors occured when inserting documents: " | errors], "\n")
     else

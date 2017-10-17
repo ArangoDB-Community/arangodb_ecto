@@ -148,12 +148,12 @@ defmodule ArangoDB.Ecto.Query do
     select(query, {{source, version, schema}})
   end
 
-  defp select(%Query{select: nil, distinct: distinct, from: from} = query, sources),
+  defp select(%Query{select: nil}, _sources),
     do: [" RETURN []" ]
   defp select(%Query{select: %{fields: fields}, distinct: distinct, from: from} = query, sources),
     do: select_fields(fields, distinct, from, sources, query)
 
-  defp select_fields(fields, distinct, from, sources, query) do
+  defp select_fields(fields, distinct, _from, sources, query) do
     values = intersperse_map(fields, ", ", fn
       {_key, value} ->
         [expr(value, sources, query)]
@@ -161,25 +161,6 @@ defmodule ArangoDB.Ecto.Query do
         [expr(value, sources, query)]
     end)
     [" RETURN ", distinct(distinct, sources, query), "[ ", values | " ]"]
-  end
-
-  defp select_all_fields([], _distinct, from, sources, query, _),
-    do: get_document_name(query, sources, from)
-  defp select_all_fields(nil, _distinct, from, sources, query, _),
-    do: get_document_name(query, sources, from)
-
-  defp select_all_fields(fields, _distinct, from, sources, query, idx) do
-    {_, name, schema} = elem(sources, idx)
-    if is_nil(schema) and is_nil(fields) do
-      get_document_name(query, sources, from)
-    else
-      intersperse_map(fields, ", ", &[quote_name(&1), ": ", name, ?. | quote_name(&1)])
-    end
-  end
-
-  defp get_document_name(query, sources, from) do
-    {_, name} = get_source(query, sources, 0, from)
-    name
   end
 
   defp update_fields(%Query{from: from, updates: updates} = query, sources) do
@@ -314,7 +295,7 @@ defmodule ArangoDB.Ecto.Query do
     "FALSE"
   end
 
-  defp expr({:in, _, [left, {:^, _, [idx, length]}]}, sources, query) do
+  defp expr({:in, _, [left, {:^, _, [idx, _length]}]}, sources, query) do
     [expr(left, sources, query), " IN @#{idx + 1}"]
   end
 
