@@ -48,6 +48,7 @@ defmodule ArangoDB.Ecto.Adapter do
           [(term -> {:ok, term} | :error) | Ecto.Type.t]
   def loaders(:uuid, Ecto.UUID), do: [&{:ok, &1}]
   def loaders(:date, _type), do: [&load_date/1]
+  def loaders(:time, _type), do: [&load_time/1]
   def loaders(:utc_datetime, _type), do: [&load_utc_datetime/1]
   def loaders(:naive_datetime, _type), do: [&NaiveDateTime.from_iso8601/1]
   def loaders(:float, _type), do: [&load_float/1]
@@ -61,6 +62,10 @@ defmodule ArangoDB.Ecto.Adapter do
     do: [fn %Date{} = d -> {:ok, Date.to_iso8601(d)} end]
   def dumpers(:date, Ecto.Date),
     do: [fn d -> {:ok, Ecto.Date.to_iso8601(d)} end]
+  def dumpers(:time, type) when type in [:time, Time],
+    do: [fn %Time{} = t -> {:ok, Time.to_iso8601(t)} end]
+  def dumpers(:time, Ecto.Time),
+    do: [fn t -> {:ok, Ecto.Time.to_iso8601(t)} end]
   def dumpers(:utc_datetime, type) when type in [:utc_datetime, DateTime],
     do: [fn %DateTime{} = dt -> {:ok, DateTime.to_iso8601(dt)} end]
   def dumpers(:naive_datetime, type) when type in [:naive_datetime, NaiveDateTime, Ecto.DateTime],
@@ -254,6 +259,13 @@ defmodule ArangoDB.Ecto.Adapter do
   defp load_date(d) do
     case Date.from_iso8601(d) do
       {:ok, res} -> {:ok, res}
+      {:error, _} -> :error
+    end
+  end
+
+  defp load_time(t) do
+    case Time.from_iso8601(t) do
+      {:ok, result} -> {:ok, result}
       {:error, _} -> :error
     end
   end

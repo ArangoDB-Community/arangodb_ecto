@@ -51,6 +51,8 @@ defmodule Ecto.Integration.Post do
     field :links, {:map, :string}
     field :posted, :date
     field :ip, :binary
+    field :modification_date, :date
+    field :modification_time, :time
     has_many :comments, Ecto.Integration.Comment
     belongs_to :author, Ecto.Integration.User
     timestamps()

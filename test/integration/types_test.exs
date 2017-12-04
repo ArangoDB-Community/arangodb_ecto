@@ -12,9 +12,12 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     uuid     = "00010203-0405-0607-0809-0a0b0c0d0e0f"
     boolean  = true
     datetime = ~N[2014-01-16 20:26:51.000]
+    mdate    = ~D[2017-12-04]
+    mtime    = ~T[15:20:48]
 
     TestRepo.insert!(%Post{title: title, public: boolean, visits: integer, uuid: uuid,
-                           counter: integer, inserted_at: datetime, intensity: float})
+                           counter: integer, inserted_at: datetime, intensity: float,
+                           modification_date: mdate, modification_time: mtime})
 
     # nil
     assert [nil] = TestRepo.all(from p in Post, select: p.ip)
@@ -40,6 +43,12 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     # NaiveDatetime
     assert [^datetime] = TestRepo.all(from p in Post, where: p.inserted_at == ^datetime, select: p.inserted_at)
 
+    #Date
+    assert [^mdate] = TestRepo.all(from p in Post, where: p.modification_date == ^mdate, select: p.modification_date)
+
+    #Time
+    assert [^mtime] = TestRepo.all(from p in Post, where: p.modification_time == ^mtime, select: p.modification_time)
+    
     # Datetime
     datetime = DateTime.utc_now |> Map.update(:microsecond, {0, 0}, fn {x, _} -> {div(x, 1000) * 1000, 3} end)
     TestRepo.insert!(%User{inserted_at: datetime})

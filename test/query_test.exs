@@ -70,7 +70,7 @@ defmodule ArangoDB.Ecto.Query.Test do
 
     test "with 'in' operator and pinning in where clause" do
       assert aql(from p in "posts", where: p.title in ^[], select: p.title) =~
-        "FOR p0 IN `posts` FILTER (FALSE) RETURN [ p0.`title` ]"
+        "FOR p0 IN `posts` FILTER (p0.`title` IN @1) RETURN [ p0.`title` ]"
 
       assert aql(from p in "posts", where: p.title in ["1", ^"hello", "3"], select: p.title) =~
         "FOR p0 IN `posts` FILTER (p0.`title` IN ['1',@1,'3']) RETURN [ p0.`title` ]"
