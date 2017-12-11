@@ -26,11 +26,6 @@ defmodule ArangoDB.Ecto do
   # Delegates for Adapter behaviour
 
   defmacro __before_compile__(env) do
-    config = Module.get_attribute(env.module, :config)
-    endpoint = struct(Arangoex.Endpoint, config)
-    quote do
-      def __endpoint__, do: unquote(Macro.escape(endpoint))
-    end
   end
 
   defdelegate autogenerate(field_type), to: ArangoDB.Ecto.Adapter

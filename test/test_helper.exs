@@ -16,6 +16,14 @@ Application.put_env(:ecto, TestRepo,
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
+
+  def init(_type, opts) do
+    opts = opts
+      |> Keyword.put(:host, System.get_env("ARANGO_SRV") || opts[:host] || "localhost")
+      |> Keyword.put(:username, System.get_env("ARANGO_USR") || opts[:username])
+      |> Keyword.put(:password, System.get_env("ARANGO_PWD") || opts[:password])
+    {:ok, opts}
+  end
 end
 
 alias Ecto.Integration.PoolRepo
@@ -26,6 +34,14 @@ Application.put_env(:ecto, PoolRepo,
 
 defmodule Ecto.Integration.PoolRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
+
+  def init(_type, opts) do
+    opts = opts
+      |> Keyword.put(:host, System.get_env("ARANGO_SRV") || opts[:host] || "localhost")
+      |> Keyword.put(:username, System.get_env("ARANGO_USR") || opts[:username])
+      |> Keyword.put(:password, System.get_env("ARANGO_PWD") || opts[:password])
+    {:ok, opts}
+  end
 end
 
 defmodule Ecto.Integration.Case do
