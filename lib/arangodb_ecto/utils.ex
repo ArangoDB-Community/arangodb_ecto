@@ -6,7 +6,7 @@ defmodule ArangoDB.Ecto.Utils do
     config = repo.config
     config = if prefix == nil,
       do: config,
-      else: Keyword.put(:database_name, prefix)
+      else: Keyword.put(config, :database_name, prefix)
     
     struct(Arangoex.Endpoint, config)
   end
