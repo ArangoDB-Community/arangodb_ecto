@@ -52,11 +52,35 @@ defmodule ArangoDB.Ecto.Migration do
     Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type})
   end
 
+  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name}}, _opts)
+      when cmd in [:drop, :drop_if_exists]
+  do
+    Arangoex.Collection.drop(endpoint, %Arangoex.Collection{name: name})
+  end
+
   defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, _opts)
-      when cmd in [:create, :create_if_not_exists]
+    when cmd in [:create, :create_if_not_exists]
   do
     body = make_index(index)
     Arangoex.Index.create_general(endpoint, collection, Map.put(body, :fields, fields))
+  end
+
+  defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, _opts)
+    when cmd in [:drop, :drop_if_exists]
+  do
+    body = make_index(index)
+      |> Map.put(:fields, fields)
+      |> Poison.encode!()
+      |> Poison.decode!()
+      |> MapSet.new()
+
+    {:ok, %{"error" => false, "indexes" => indexes}} = Arangoex.Index.indexes(endpoint, collection)
+    matching_index = Enum.filter(indexes, &MapSet.subset?(body, MapSet.new(&1)))
+    case {cmd, matching_index} do
+      {_, [index]} -> Arangoex.Index.delete(endpoint, index["id"])
+      {:drop_if_exists, []} -> :ok
+      {:drop, []} -> raise "No index found matching #{inspect index}"
+    end
   end
 
   defp execute(_, {:alter, _, _}, options) do
@@ -64,8 +88,8 @@ defmodule ArangoDB.Ecto.Migration do
     {:ok, nil}
   end
 
-  defp execute(_, {cmd, _, _}, _) do
-    raise "{inspect __MODULE__}: unspported DDL operation #{inspect cmd}"
+  defp execute(_, cmd, _) do
+    raise "#{inspect __MODULE__}: unspported DDL operation #{inspect cmd}"
   end
 
   #
