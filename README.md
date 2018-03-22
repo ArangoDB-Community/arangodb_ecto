@@ -30,7 +30,7 @@ In the repository configuration, you need to specify the `:adapter`:
 ```elixir
 config :my_app, MyApp.Repo,
   adapter: ArangoDB.Ecto,
-  database_name: "my_app"
+  database: "my_app"
   ...
 ```
    
@@ -40,7 +40,7 @@ Unless specified otherwise, the show default values are used.
 host: "localhost",
 port: 8529,
 scheme: "http",
-database_name: "_system",
+database: "_system",
 arrango_version: 30_000,
 headers: %{"Accept": "*/*"},
 use_auth: :basic,
@@ -75,6 +75,7 @@ defmodule Post do
   end
 end
 ```
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
@@ -92,7 +93,9 @@ end
 * on conflict
 * upserts
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/arangodb_ecto](https://hexdocs.pm/arangodb_ecto).
-
+## Testing
+Before running the tests, configure access to your Arango database by setting
+these environment variables:
+- `ARANGO_SRV`
+- `ARANGO_USR`
+- `ARANGO_PWD`

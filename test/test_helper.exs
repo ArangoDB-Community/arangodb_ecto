@@ -12,7 +12,7 @@ alias Ecto.Integration.TestRepo
 
 Application.put_env(:ecto, TestRepo,
   adapter: ArangoDB.Ecto,
-  database_name: "test")
+  database: "test")
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
