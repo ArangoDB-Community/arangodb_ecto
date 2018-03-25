@@ -8,7 +8,7 @@ defmodule ArangoDB.Ecto.Query.Test do
 
   defp aql(query, operation \\ :all, counter \\ 0) do
     {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, ArangoDB.Ecto, counter)
-    query = query
+    {query, _} = query
       |> Ecto.Query.Planner.returning(true)
       |> Ecto.Query.Planner.normalize(operation, ArangoDB.Ecto, counter)
     apply(ArangoDB.Ecto.Query, operation, [query])
