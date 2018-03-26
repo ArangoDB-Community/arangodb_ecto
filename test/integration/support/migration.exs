@@ -51,5 +51,8 @@ defmodule Ecto.Integration.Migration do
 
     create table(:customs_customs, options: "edge") do
     end
+
+    create table(:docs) do
+    end
   end
 end
