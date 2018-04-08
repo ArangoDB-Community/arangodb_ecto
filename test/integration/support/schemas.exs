@@ -76,8 +76,8 @@ defmodule Ecto.Integration.Comment do
   schema "comments" do
     field :_rev, :binary, read_after_writes: true
     field :text, :string
-    belongs_to :post, Ecto.Integration.Post, foreign_key: :post__key
-    belongs_to :author, Ecto.Integration.User, foreign_key: :user__key
+    belongs_to :post, Ecto.Integration.Post
+    belongs_to :author, Ecto.Integration.User
     #has_one :post_permalink, through: [:post, :permalink]
   end
 
@@ -144,5 +144,19 @@ defmodule Ecto.Integration.Order do
 
   schema "orders" do
     embeds_one :item, Ecto.Integration.Item
+  end
+end
+
+defmodule Ecto.Integration.Doc do
+  @moduledoc """
+  This module is used to test:
+
+    * Using Arango's `_key` instead of Ecto's `id`
+
+  """
+  use ArangoDB.Ecto.Schema, arango_key: true
+
+  schema "docs" do
+    field :content, :string
   end
 end

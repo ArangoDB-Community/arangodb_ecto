@@ -54,6 +54,7 @@ defmodule Ecto.Integration.Case do
     clear_collection(:customs)
     clear_collection(:orders)
     clear_collection(:tags)
+    clear_collection(:docs)
     :ok
   end
 
