@@ -86,13 +86,13 @@ defmodule ArangoDB.Ecto.Adapter do
           query: {:nocache, prepared} |
                  {:cached, (prepared -> :ok), cached} |
                  {:cache, (cached -> :ok), prepared}
-  def execute(repo, %{fields: fields, prefix: prefix}, {:nocache, {cmd, aql}}, params, process, _options) do
+  def execute(repo, %{prefix: prefix}, {:nocache, {cmd, aql}}, params, mapper, _options) do
     Logger.debug(aql)
     cursor = make_cursor(aql, params)
     # TODO - apply Arango specific options
     Utils.get_endpoint(repo, prefix)
     |> Arangoex.Cursor.cursor_create(cursor)
-    |> to_result(cmd, {fields, process})
+    |> to_result(cmd, mapper)
   end
 
   @spec insert_all(repo, schema_meta, header :: [atom], [fields], on_conflict, returning, options) ::
@@ -107,7 +107,7 @@ defmodule ArangoDB.Ecto.Adapter do
     Logger.debug("Inserting documents #{inspect docs} into collection #{collection}")
     Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, opts)
-    |> to_result(:insert_all, returning)
+    |> handle_insert_result(returning)
   end
 
   @spec insert(repo, schema_meta, fields, on_conflict, returning, options) ::
@@ -174,26 +174,20 @@ defmodule ArangoDB.Ecto.Adapter do
     do: {0, []}
   defp to_result({:ok, %{"hasMore" => true}}, :all, _),
     do: raise "Query resulted in more entries than could be returned in a single batch, but cursors are not yet supported."
-  defp to_result({:ok, %{"result" => docs}}, :all, {fields, process}),
-    do: {length(docs), Enum.map(docs, &process_row(&1, fields, process))}
+  defp to_result({:ok, %{"result" => docs}}, :all, mapper),
+    do: {length(docs), decode_map(docs, mapper)}    
 
   #
   # update_all / delete_all
 
-  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, cmd, {fields, process})
+  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, cmd, mapper)
     when cmd in [:update_all, :delete_all]
   do
     cond do
-      fields == nil -> {count, nil}
-      true -> {count, Enum.map(docs, &process_row(&1, fields, process))}
+      mapper == nil -> {count, nil}
+      true -> {count, decode_map(docs, mapper)}
     end
   end
-
-  #
-  # insert_all
-
-  defp to_result(docs, :insert_all, returning) when is_list(docs),
-    do: handle_insert_result(docs, returning)
 
   #
   # errors
@@ -211,6 +205,18 @@ defmodule ArangoDB.Ecto.Adapter do
      end)
   end
 
+  defp decode_map(data, nil), do: data
+  defp decode_map(data, mapper) do
+    decode_map(data, mapper, []) |> :lists.reverse()
+  end
+
+  defp decode_map([row | data], mapper, decoded) do
+    decode_map(data, mapper, [mapper.(row) | decoded])
+  end
+  defp decode_map([], _, decoded) do
+    decoded
+  end
+  
   defp handle_insert_result(docs, returning) when is_list(docs) do
     errors = docs
       |> Enum.filter(&match?({:error, _}, &1))

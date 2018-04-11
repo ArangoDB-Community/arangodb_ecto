@@ -48,7 +48,7 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
 
     #Time
     assert [^mtime] = TestRepo.all(from p in Post, where: p.modification_time == ^mtime, select: p.modification_time)
-    
+
     # Datetime
     datetime = DateTime.utc_now |> Map.update(:microsecond, {0, 0}, fn {x, _} -> {div(x, 1000) * 1000, 3} end)
     TestRepo.insert!(%User{inserted_at: datetime})
@@ -87,14 +87,14 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
 
     # Update
     tag = TestRepo.update!(Ecto.Changeset.change tag, ints: [3, 2, 1])
-    assert TestRepo.get!(Tag, tag._key).ints == [3, 2, 1]
+    assert TestRepo.get!(Tag, tag.id).ints == [3, 2, 1]
 
     # Update all
     {1, _} = TestRepo.update_all(Tag, push: [ints: 0])
-    assert TestRepo.get!(Tag, tag._key).ints == [3, 2, 1, 0]
+    assert TestRepo.get!(Tag, tag.id).ints == [3, 2, 1, 0]
 
     {1, _} = TestRepo.update_all(Tag, pull: [ints: 2])
-    assert TestRepo.get!(Tag, tag._key).ints == [3, 1, 0]
+    assert TestRepo.get!(Tag, tag.id).ints == [3, 1, 0]
   end
 
   @tag :array_type
@@ -118,9 +118,9 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     post1 = TestRepo.insert!(%Post{meta: %{"foo" => "bar", "baz" => "bat"}})
     post2 = TestRepo.insert!(%Post{meta: %{foo: "bar", baz: "bat"}})
 
-    assert TestRepo.all(from p in Post, where: p._key == ^post1._key, select: p.meta) ==
+    assert TestRepo.all(from p in Post, where: p.id == ^post1.id, select: p.meta) ==
            [%{"foo" => "bar", "baz" => "bat"}]
-    assert TestRepo.all(from p in Post, where: p._key == ^post2._key, select: p.meta) ==
+    assert TestRepo.all(from p in Post, where: p.id == ^post2.id, select: p.meta) ==
            [%{"foo" => "bar", "baz" => "bat"}]
   end
 
@@ -129,24 +129,24 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     post1 = TestRepo.insert!(%Post{links: %{"foo" => "http://foo.com", "bar" => "http://bar.com"}})
     post2 = TestRepo.insert!(%Post{links: %{foo: "http://foo.com", bar: "http://bar.com"}})
 
-    assert TestRepo.all(from p in Post, where: p._key == ^post1._key, select: p.links) ==
+    assert TestRepo.all(from p in Post, where: p.id == ^post1.id, select: p.links) ==
            [%{"foo" => "http://foo.com", "bar" => "http://bar.com"}]
-    assert TestRepo.all(from p in Post, where: p._key == ^post2._key, select: p.links) ==
+    assert TestRepo.all(from p in Post, where: p.id == ^post2.id, select: p.links) ==
            [%{"foo" => "http://foo.com", "bar" => "http://bar.com"}]
   end
 
   @tag :map_type
   test "map type on update" do
     post = TestRepo.insert!(%Post{meta: %{"world" => "hello"}})
-    assert TestRepo.get!(Post, post._key).meta == %{"world" => "hello"}
+    assert TestRepo.get!(Post, post.id).meta == %{"world" => "hello"}
 
     # TODO - by default ArangoDB merges objects
     #post = TestRepo.update!(Ecto.Changeset.change(post, meta: %{hello: "world"}))
-    #assert TestRepo.get!(Post, post._key).meta == %{"hello" => "world"}
+    #assert TestRepo.get!(Post, post.id).meta == %{"hello" => "world"}
 
-    query = from(p in Post, where: p._key == ^post._key)
+    query = from(p in Post, where: p.id == ^post.id)
     TestRepo.update_all(query, set: [meta: %{world: "hello"}])
-    assert TestRepo.get!(Post, post._key).meta == %{"world" => "hello"}
+    assert TestRepo.get!(Post, post.id).meta == %{"world" => "hello"}
   end
 
   @tag :map_type
@@ -157,7 +157,7 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
       |> Ecto.Changeset.change
       |> Ecto.Changeset.put_embed(:item, item)
     order = TestRepo.insert!(order)
-    dbitem = TestRepo.get!(Order, order._key).item
+    dbitem = TestRepo.get!(Order, order.id).item
     assert item.price == dbitem.price
     assert item.valid_at == dbitem.valid_at
 
@@ -166,7 +166,7 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     assert item.valid_at == dbitem.valid_at
 
     {1, _} = TestRepo.update_all(Order, set: [item: %{dbitem | price: 456}])
-    assert TestRepo.get!(Order, order._key).item.price == 456
+    assert TestRepo.get!(Order, order.id).item.price == 456
   end
 
   @tag :map_type
@@ -179,7 +179,7 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
       |> Ecto.Changeset.put_embed(:items, [item])
     tag = TestRepo.insert!(tag)
 
-    [dbitem] = TestRepo.get!(Tag, tag._key).items
+    [dbitem] = TestRepo.get!(Tag, tag.id).items
     assert item.price == dbitem.price
     assert item.valid_at == dbitem.valid_at
 
@@ -188,7 +188,7 @@ defmodule ArangoDB.Ecto.Integration.TypesTest do
     assert item.valid_at == dbitem.valid_at
 
     {1, _} = TestRepo.update_all(Tag, set: [items: [%{dbitem | price: 456}]])
-    assert (TestRepo.get!(Tag, tag._key).items |> hd).price == 456
+    assert (TestRepo.get!(Tag, tag.id).items |> hd).price == 456
   end
 
   # TODO

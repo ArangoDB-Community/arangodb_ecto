@@ -3,7 +3,7 @@ defmodule Ecto.Integration.RepoTest do
 
   import Ecto.Query
 
-  alias Ecto.Integration.{TestRepo, Post, User, Comment, Custom}
+  alias Ecto.Integration.{TestRepo, Post, User, Comment, Custom, Doc}
 
   test "returns already started for started repos" do
     assert {:error, {:already_started, _}} = TestRepo.start_link
@@ -40,7 +40,7 @@ defmodule Ecto.Integration.RepoTest do
       TestRepo.all(from(p in "posts", order_by: p.title, select: p.title))
 
     assert [_] =
-      TestRepo.all(from(p in "posts", where: p.title == "title1", select: p._key))
+      TestRepo.all(from(p in "posts", where: p.title == "title1", select: p.id))
   end
 
   @tag :invalid_prefix
@@ -80,14 +80,14 @@ defmodule Ecto.Integration.RepoTest do
 
     post = TestRepo.insert!(changeset)
     assert %Post{text: "x", title: "hello", temp: "unknown"} = post
-    assert %Post{text: "x", title: "hello", temp: "temp"} = TestRepo.get!(Post, post._key)
+    assert %Post{text: "x", title: "hello", temp: "temp"} = TestRepo.get!(Post, post.id)
 
     # On update we merge only fields, direct schema changes are discarded
     changeset = Ecto.Changeset.cast(%{post | text: "y"},
                                     %{"title" => "world", "temp" => "unknown"}, ~w(title temp))
 
     assert %Post{text: "y", title: "world", temp: "unknown"} = TestRepo.update!(changeset)
-    assert %Post{text: "x", title: "world", temp: "temp"} = TestRepo.get!(Post, post._key)
+    assert %Post{text: "x", title: "world", temp: "temp"} = TestRepo.get!(Post, post.id)
   end
 
   test "insert and update with empty changeset" do
@@ -114,27 +114,27 @@ defmodule Ecto.Integration.RepoTest do
     end
 
     changeset = Ecto.Changeset.cast(struct(RAW, %{}), %{}, ~w())
-    assert %{_key: cid, _rev: rev1} = raw = TestRepo.insert!(changeset)
+    assert %{id: cid, _rev: rev1} = raw = TestRepo.insert!(changeset)
 
     changeset = Ecto.Changeset.cast(raw, %{"text" => "0"}, ~w(text))
-    assert %{_key: ^cid, _rev: rev2, text: "0"} = TestRepo.update!(changeset)
+    assert %{id: ^cid, _rev: rev2, text: "0"} = TestRepo.update!(changeset)
     assert rev1 != rev2
   end
 
   @tag :id_type
   @tag :assigns_id_type
   test "insert with user-assigned primary key" do
-    assert %Post{_key: "1"} = TestRepo.insert!(%Post{_key: "1"})
+    assert %Post{id: "1"} = TestRepo.insert!(%Post{id: "1"})
   end
 
   @tag :id_type
   @tag :assigns_id_type
   test "insert and update with user-assigned primary key in changeset" do
-    changeset = Ecto.Changeset.cast(%Post{_key: "11"}, %{"_key" => "13"}, ~w(_key))
-    assert %Post{_key: "13"} = post = TestRepo.insert!(changeset)
+    changeset = Ecto.Changeset.cast(%Post{id: "11"}, %{"id" => "13"}, ~w(id))
+    assert %Post{id: "13"} = post = TestRepo.insert!(changeset)
 
-    changeset = Ecto.Changeset.cast(post, %{"_key" => "15"}, ~w(_key))
-    assert %Post{_key: "15"} = TestRepo.update!(changeset)
+    changeset = Ecto.Changeset.cast(post, %{"id" => "15"}, ~w(id))
+    assert %Post{id: "15"} = TestRepo.update!(changeset)
   end
 
   test "insert and fetch a schema with utc timestamps" do
@@ -188,55 +188,55 @@ defmodule Ecto.Integration.RepoTest do
     post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
     post2 = TestRepo.insert!(%Post{title: "2", text: "hai"})
 
-    assert post1 == TestRepo.get(Post, post1._key)
-    assert post2 == TestRepo.get(Post, to_string post2._key) # With casting
+    assert post1 == TestRepo.get(Post, post1.id)
+    assert post2 == TestRepo.get(Post, to_string post2.id) # With casting
 
-    assert post1 == TestRepo.get!(Post, post1._key)
-    assert post2 == TestRepo.get!(Post, to_string post2._key) # With casting
+    assert post1 == TestRepo.get!(Post, post1.id)
+    assert post2 == TestRepo.get!(Post, to_string post2.id) # With casting
 
     TestRepo.delete!(post1)
 
-    assert nil   == TestRepo.get(Post, post1._key)
+    assert nil   == TestRepo.get(Post, post1.id)
     assert_raise Ecto.NoResultsError, fn ->
-      TestRepo.get!(Post, post1._key)
+      TestRepo.get!(Post, post1.id)
     end
   end
 
   test "get(!) with custom source" do
     custom = Ecto.put_meta(%Custom{}, source: "posts")
     custom = TestRepo.insert!(custom)
-    key    = custom._key
+    key    = custom.id
     id = "posts/#{key}"
-    assert %Custom{_id: ^id, _key: ^key, __meta__: %{source: {nil, "posts"}}} =
+    assert %Custom{_id: ^id, id: ^key, __meta__: %{source: {nil, "posts"}}} =
            TestRepo.get(from(c in {"posts", Custom}), key)
   end
 
   test "get(!) with binary_id" do
     custom = TestRepo.insert!(%Custom{})
-    key = custom._key
-    assert %Custom{_key: ^key} = TestRepo.get(Custom, key)
+    key = custom.id
+    assert %Custom{id: ^key} = TestRepo.get(Custom, key)
   end
 
   test "get_by(!)" do
     post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
     post2 = TestRepo.insert!(%Post{title: "2", text: "hello"})
 
-    assert post1 == TestRepo.get_by(Post, _key: post1._key)
+    assert post1 == TestRepo.get_by(Post, id: post1.id)
     assert post1 == TestRepo.get_by(Post, text: post1.text)
-    assert post1 == TestRepo.get_by(Post, _key: post1._key, text: post1.text)
-    assert post2 == TestRepo.get_by(Post, _key: to_string(post2._key)) # With casting
+    assert post1 == TestRepo.get_by(Post, id: post1.id, text: post1.text)
+    assert post2 == TestRepo.get_by(Post, id: to_string(post2.id)) # With casting
     assert nil   == TestRepo.get_by(Post, text: "hey")
-    assert nil   == TestRepo.get_by(Post, _key: post2._key, text: "hey")
+    assert nil   == TestRepo.get_by(Post, id: post2.id, text: "hey")
 
-    assert post1 == TestRepo.get_by!(Post, _key: post1._key)
+    assert post1 == TestRepo.get_by!(Post, id: post1.id)
     assert post1 == TestRepo.get_by!(Post, text: post1.text)
-    assert post1 == TestRepo.get_by!(Post, _key: post1._key, text: post1.text)
-    assert post2 == TestRepo.get_by!(Post, _key: to_string(post2._key)) # With casting
+    assert post1 == TestRepo.get_by!(Post, id: post1.id, text: post1.text)
+    assert post2 == TestRepo.get_by!(Post, id: to_string(post2.id)) # With casting
 
-    assert post1 == TestRepo.get_by!(Post, %{_key: post1._key})
+    assert post1 == TestRepo.get_by!(Post, %{id: post1.id})
 
     assert_raise Ecto.NoResultsError, fn ->
-      TestRepo.get_by!(Post, _key: post2._key, text: "hey")
+      TestRepo.get_by!(Post, id: post2.id, text: "hey")
     end
   end
 
@@ -255,7 +255,7 @@ defmodule Ecto.Integration.RepoTest do
     assert post2 == query |> first |> TestRepo.one
     assert post1 == query |> last |> TestRepo.one
 
-    query = from p in Post, where: is_nil(p._key)
+    query = from p in Post, where: is_nil(p.id)
     refute query |> first |> TestRepo.one
     refute query |> first |> TestRepo.one
     assert_raise Ecto.NoResultsError, fn -> query |> first |> TestRepo.one! end
@@ -287,7 +287,7 @@ defmodule Ecto.Integration.RepoTest do
     assert {0, []} = TestRepo.insert_all(Comment, [], returning: true)
     assert {0, nil} = TestRepo.insert_all(Comment, [], returning: false)
 
-    {2, [c1, c2]} = TestRepo.insert_all(Comment, [[text: "1"], [text: "2"]], returning: [:_key, :text])
+    {2, [c1, c2]} = TestRepo.insert_all(Comment, [[text: "1"], [text: "2"]], returning: [:id, :text])
     assert %Comment{text: "1", __meta__: %{state: :loaded}} = c1
     assert %Comment{text: "2", __meta__: %{state: :loaded}} = c2
 
@@ -298,9 +298,9 @@ defmodule Ecto.Integration.RepoTest do
 
   @tag :returning
   test "insert all with returning without schema" do
-    {2, [c1, c2]} = TestRepo.insert_all("comments", [[text: "1"], [text: "2"]], returning: [:_key, :text])
-    assert %{_key: _, text: "1"} = c1
-    assert %{_key: _, text: "2"} = c2
+    {2, [c1, c2]} = TestRepo.insert_all("comments", [[text: "1"], [text: "2"]], returning: [:id, :text])
+    assert %{id: _, text: "1"} = c1
+    assert %{id: _, text: "2"} = c2
 
     assert_raise ArgumentError, fn ->
       TestRepo.insert_all("comments", [[text: "1"], [text: "2"]], returning: true)
@@ -315,25 +315,25 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "insert all autogenerates for binary_id type" do
-    custom = TestRepo.insert!(%Custom{_key: nil})
-    assert custom._key
-    assert TestRepo.get(Custom, custom._key)
+    custom = TestRepo.insert!(%Custom{id: nil})
+    assert custom.id
+    assert TestRepo.get(Custom, custom.id)
     assert TestRepo.delete!(custom)
-    refute TestRepo.get(Custom, custom._key)
+    refute TestRepo.get(Custom, custom.id)
 
     uuid = Ecto.UUID.generate
-    assert {2, nil} = TestRepo.insert_all(Custom, [%{uuid: uuid}, %{_key: custom._key}])
-    assert [%Custom{_key: key2, uuid: nil},
-            %Custom{_key: key1, uuid: ^uuid}] = Enum.sort_by(TestRepo.all(Custom), & &1.uuid)
+    assert {2, nil} = TestRepo.insert_all(Custom, [%{uuid: uuid}, %{id: custom.id}])
+    assert [%Custom{id: key2, uuid: nil},
+            %Custom{id: key1, uuid: ^uuid}] = Enum.sort_by(TestRepo.all(Custom), & &1.uuid)
     assert key1 && key2
-    assert custom._key != key1
-    assert custom._key == key2
+    assert custom.id != key1
+    assert custom.id == key2
   end
 
   test "update all" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3"})
 
     assert {0, []} = TestRepo.update_all(from(p in Post, where: false), [set: [title: "x"]], returning: true)
 
@@ -357,30 +357,32 @@ defmodule Ecto.Integration.RepoTest do
 
   @tag :returning
   test "update all with returning with schema" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3"})
 
     assert {3, posts} = TestRepo.update_all(Post, [set: [title: "x"]], returning: true)
 
-    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
-    assert %Post{_key: ^id1, title: "x"} = p1
-    assert %Post{_key: ^id2, title: "x"} = p2
-    assert %Post{_key: ^id3, title: "x"} = p3
+    [p1, p2, p3] = Enum.sort_by(posts, & &1.id)
+    assert %Post{id: ^id1, title: "x"} = p1
+    assert %Post{id: ^id2, title: "x"} = p2
+    assert %Post{id: ^id3, title: "x"} = p3
 
-    assert {3, posts} = TestRepo.update_all(Post, [set: [visits: 11]], returning: [:_key, :visits])
+    assert {3, posts} = TestRepo.update_all(Post, [set: [visits: 11]], returning: [:id, :visits])
 
-    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
-    assert %Post{_key: ^id1, title: nil, visits: 11} = p1
-    assert %Post{_key: ^id2, title: nil, visits: 11} = p2
-    assert %Post{_key: ^id3, title: nil, visits: 11} = p3
+    [p1, p2, p3] = Enum.sort_by(posts, & &1.id)
+    assert %Post{id: ^id1, title: nil, visits: 11} = p1
+    assert %Post{id: ^id2, title: nil, visits: 11} = p2
+    assert %Post{id: ^id3, title: nil, visits: 11} = p3
   end
 
   @tag :returning
   test "update all with returning without schema" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+    # Because we are not using the primary key translation of Arango.Ecto.Schema,
+    # we have to deal with _key ourselves.
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3"})
 
     assert {3, posts} = TestRepo.update_all("posts", [set: [title: "x"]], returning: [:_key, :title])
 
@@ -391,9 +393,9 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "update all with filter" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3"})
 
     query = from(p in Post, where: p.title == "1" or p.title == "2",
                             update: [set: [text: ^"y"]])
@@ -405,9 +407,9 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "update all no entries" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3"})
 
     query = from(p in Post, where: p.title == "4")
     assert {0, nil} = TestRepo.update_all(query, set: [title: "x"])
@@ -418,18 +420,18 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "update all increment syntax" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", visits: 0})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", visits: 1})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", visits: 0})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2", visits: 1})
 
     # Positive
-    query = from p in Post, where: not is_nil(p._key), update: [inc: [visits: 2]]
+    query = from p in Post, where: not is_nil(p.id), update: [inc: [visits: 2]]
     assert {2, nil} = TestRepo.update_all(query, [])
 
     assert %Post{visits: 2} = TestRepo.get(Post, id1)
     assert %Post{visits: 3} = TestRepo.get(Post, id2)
 
     # Negative
-    query = from p in Post, where: not is_nil(p._key), update: [inc: [visits: -1]]
+    query = from p in Post, where: not is_nil(p.id), update: [inc: [visits: -1]]
     assert {2, nil} = TestRepo.update_all(query, [])
 
     assert %Post{visits: 1} = TestRepo.get(Post, id1)
@@ -437,8 +439,8 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   @tag :id_type
-  test "update all with casting and dumping on _key type field" do
-    assert %Post{_key: key} = TestRepo.insert!(%Post{})
+  test "update all with casting and dumping on id type field" do
+    assert %Post{id: key} = TestRepo.insert!(%Post{})
     counter = String.to_integer(key)
     assert {1, nil} = TestRepo.update_all(Post, set: [counter: to_string(counter)])
     assert %Post{counter: ^counter} = TestRepo.get(Post, key)
@@ -447,7 +449,7 @@ defmodule Ecto.Integration.RepoTest do
   test "update all with casting and dumping" do
     text = "hai"
     datetime = ~N[2014-01-16 20:26:51.000000]
-    assert %Post{_key: key} = TestRepo.insert!(%Post{})
+    assert %Post{id: key} = TestRepo.insert!(%Post{})
 
     assert {1, nil} = TestRepo.update_all(Post, set: [text: text, inserted_at: datetime])
     assert %Post{text: "hai", inserted_at: ^datetime} = TestRepo.get(Post, key)
@@ -469,24 +471,25 @@ defmodule Ecto.Integration.RepoTest do
 
   @tag :returning
   test "delete all with returning with schema" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
 
     assert {3, posts} = TestRepo.delete_all(Post, returning: true)
 
-    [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
-    assert %Post{_key: ^id1, title: "1"} = p1
-    assert %Post{_key: ^id2, title: "2"} = p2
-    assert %Post{_key: ^id3, title: "3"} = p3
+    [p1, p2, p3] = Enum.sort_by(posts, & &1.id)
+    assert %Post{id: ^id1, title: "1"} = p1
+    assert %Post{id: ^id2, title: "2"} = p2
+    assert %Post{id: ^id3, title: "3"} = p3
   end
 
   @tag :returning
   test "delete all with returning without schema" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
 
+    # Because we do not use ArangoDB.Ecto.Schema, we have to work with _key instead of id.
     assert {3, posts} = TestRepo.delete_all("posts", returning: [:_key, :title])
 
     [p1, p2, p3] = Enum.sort_by(posts, & &1._key)
@@ -506,9 +509,9 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "delete all no entries" do
-    assert %Post{_key: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
-    assert %Post{_key: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
-    assert %Post{_key: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
+    assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
+    assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3", text: "hai"})
 
     query = from(p in Post, where: p.title == "4")
     assert {0, nil} = TestRepo.delete_all(query)
@@ -518,7 +521,7 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "virtual field" do
-    assert %Post{_key: key} = TestRepo.insert!(%Post{title: "1", text: "hai"})
+    assert %Post{id: key} = TestRepo.insert!(%Post{title: "1", text: "hai"})
     assert TestRepo.get(Post, key).temp == "temp"
   end
 
@@ -564,37 +567,38 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "query select take with structs" do
-    %{_key: pid1} = TestRepo.insert!(%Post{title: "1"})
-    %{_key: pid2} = TestRepo.insert!(%Post{title: "2"})
-    %{_key: pid3} = TestRepo.insert!(%Post{title: "3"})
+    %{id: pid1} = TestRepo.insert!(%Post{title: "1"})
+    %{id: pid2} = TestRepo.insert!(%Post{title: "2"})
+    %{id: pid3} = TestRepo.insert!(%Post{title: "3"})
 
     [p1, p2, p3] = Post |> select([p], struct(p, [:title])) |> order_by([:title]) |> TestRepo.all
-    refute p1._key
+    refute p1.id
     assert p1.title == "1"
     assert match?(%Post{}, p1)
-    refute p2._key
+    refute p2.id
     assert p2.title == "2"
     assert match?(%Post{}, p2)
-    refute p3._key
+    refute p3.id
     assert p3.title == "3"
     assert match?(%Post{}, p3)
 
-    [p1, p2, p3] = Post |> select([:_key]) |> order_by([:_key]) |> TestRepo.all
-    assert %Post{_key: ^pid1} = p1
-    assert %Post{_key: ^pid2} = p2
-    assert %Post{_key: ^pid3} = p3
+    [p1, p2, p3] = Post |> select([:id]) |> order_by([:id]) |> TestRepo.all
+    assert %Post{id: ^pid1} = p1
+    assert %Post{id: ^pid2} = p2
+    assert %Post{id: ^pid3} = p3
   end
 
   test "query select take with maps" do
-    %{_key: pid1} = TestRepo.insert!(%Post{title: "1"})
-    %{_key: pid2} = TestRepo.insert!(%Post{title: "2"})
-    %{_key: pid3} = TestRepo.insert!(%Post{title: "3"})
+    %{id: pid1} = TestRepo.insert!(%Post{title: "1"})
+    %{id: pid2} = TestRepo.insert!(%Post{title: "2"})
+    %{id: pid3} = TestRepo.insert!(%Post{title: "3"})
 
     [p1, p2, p3] = "posts" |> select([p], map(p, [:title])) |> order_by([:title]) |> TestRepo.all
     assert p1 == %{title: "1"}
     assert p2 == %{title: "2"}
     assert p3 == %{title: "3"}
 
+    # Because we do not use ArangoDB.Ecto.Schema, we have to work with _key instead of id.
     [p1, p2, p3] = "posts" |> select([:_key]) |> order_by([:_key]) |> TestRepo.all
     assert p1 == %{_key: pid1}
     assert p2 == %{_key: pid2}
@@ -602,9 +606,9 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "query select take with assocs" do
-    %{_key: pid} = TestRepo.insert!(%Post{title: "post"})
-    TestRepo.insert!(%Comment{post__key: pid, text: "comment"})
-    fields = [:_key, :title, comments: [:text, :post__key]]
+    %{id: pid} = TestRepo.insert!(%Post{title: "post"})
+    TestRepo.insert!(%Comment{post_id: pid, text: "comment"})
+    fields = [:id, :title, comments: [:text, :post_id]]
 
     [p] = Post |> preload(:comments) |> select([p], ^fields) |> TestRepo.all
     assert %Post{title: "post"} = p
@@ -615,7 +619,7 @@ defmodule Ecto.Integration.RepoTest do
     assert [%Comment{text: "comment"}] = p.comments
 
     [p] = Post |> preload(:comments) |> select([p], map(p, ^fields)) |> TestRepo.all
-    assert p == %{_key: pid, title: "post", comments: [%{text: "comment", post__key: pid}]}
+    assert p == %{id: pid, title: "post", comments: [%{text: "comment", post_id: pid}]}
   end
 
   test "query select take with single nil column" do
@@ -625,31 +629,31 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   test "query select take with nil assoc" do
-    %{_key: cid} = TestRepo.insert!(%Comment{text: "comment"})
-    fields = [:_key, :text, post: [:title]]
+    %{id: cid} = TestRepo.insert!(%Comment{text: "comment"})
+    fields = [:id, :text, post: [:title]]
 
     [c] = Comment |> preload(:post) |> select([c], ^fields) |> TestRepo.all
-    assert %Comment{_key: ^cid, text: "comment", post: nil} = c
+    assert %Comment{id: ^cid, text: "comment", post: nil} = c
 
     [c] = Comment |> preload(:post) |> select([c], struct(c, ^fields)) |> TestRepo.all
-    assert %Comment{_key: ^cid, text: "comment", post: nil} = c
+    assert %Comment{id: ^cid, text: "comment", post: nil} = c
 
     [c] = Comment |> preload(:post) |> select([c], map(c, ^fields)) |> TestRepo.all
-    assert c == %{_key: cid, text: "comment", post: nil}
+    assert c == %{id: cid, text: "comment", post: nil}
   end
 
   test "query where interpolation" do
     post1 = TestRepo.insert!(%Post{text: "x", title: "hello"})
     post2 = TestRepo.insert!(%Post{text: "y", title: "goodbye"})
 
-    assert [post1, post2] == Post |> where([], []) |> TestRepo.all |> Enum.sort_by(& &1._key)
+    assert [post1, post2] == Post |> where([], []) |> TestRepo.all |> Enum.sort_by(& &1.id)
     assert [post1]        == Post |> where([], [title: "hello"]) |> TestRepo.all
-    assert [post1]        == Post |> where([], [title: "hello", _key: ^post1._key]) |> TestRepo.all
+    assert [post1]        == Post |> where([], [title: "hello", id: ^post1.id]) |> TestRepo.all
 
     params0 = []
     params1 = [title: "hello"]
-    params2 = [title: "hello", _key: post1._key]
-    assert [post1, post2]  == (from Post, where: ^params0) |> TestRepo.all |> Enum.sort_by(& &1._key)
+    params2 = [title: "hello", id: post1.id]
+    assert [post1, post2]  == (from Post, where: ^params0) |> TestRepo.all |> Enum.sort_by(& &1.id)
     assert [post1]         == (from Post, where: ^params1) |> TestRepo.all
     assert [post1]         == (from Post, where: ^params2) |> TestRepo.all
 
@@ -662,7 +666,7 @@ defmodule Ecto.Integration.RepoTest do
     assoc_custom = TestRepo.insert!(%Custom{uuid: "1"})
     custom = TestRepo.insert!(%Custom{customs: [assoc_custom], uuid: "2"})
 
-    custom = Custom |> TestRepo.get!(custom._key) |> TestRepo.preload(:customs)
+    custom = Custom |> TestRepo.get!(custom.id) |> TestRepo.preload(:customs)
     assert [_] = custom.customs
 
     custom =
@@ -672,7 +676,14 @@ defmodule Ecto.Integration.RepoTest do
       |> TestRepo.update!
     assert [] = custom.customs
 
-    custom = Custom |> TestRepo.get!(custom._key) |> TestRepo.preload(:customs)
+    custom = Custom |> TestRepo.get!(custom.id) |> TestRepo.preload(:customs)
     assert [] = custom.customs
   end
+
+  test "use Arango _key" do
+    doc1 = TestRepo.insert!(%Doc{content: "1"})
+
+    assert doc1 == TestRepo.get(Doc, doc1._key)
+  end
+
 end

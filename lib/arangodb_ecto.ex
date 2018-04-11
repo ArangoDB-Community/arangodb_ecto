@@ -25,7 +25,7 @@ defmodule ArangoDB.Ecto do
 
   # Delegates for Adapter behaviour
 
-  defmacro __before_compile__(env) do
+  defmacro __before_compile__(_env) do
   end
 
   defdelegate autogenerate(field_type), to: ArangoDB.Ecto.Adapter
