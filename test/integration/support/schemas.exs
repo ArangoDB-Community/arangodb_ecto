@@ -158,5 +158,6 @@ defmodule Ecto.Integration.Doc do
 
   schema "docs" do
     field :content, :string
+    field :int, :integer
   end
 end

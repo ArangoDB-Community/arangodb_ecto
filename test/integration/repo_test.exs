@@ -680,6 +680,27 @@ defmodule Ecto.Integration.RepoTest do
     assert [] = custom.customs
   end
 
+  test "fetch, update and delete so many documents that cursors are required" do
+    {:ok, [count]} = ArangoDB.Ecto.query(TestRepo, """
+        LET count = COUNT(FOR i IN 1..5000
+          INSERT { "int": i } INTO docs
+          RETURN i)
+        RETURN count
+      """)
+
+    docs = TestRepo.all(from d in Doc, order_by: d.int)
+    vals = 1..count |> Enum.map(& &1)
+    assert Enum.map(docs, & &1.int) == vals
+
+    {^count, docs} = from(d in Doc) |> TestRepo.update_all([set: [content: "updated"]], returning: true)
+    assert Enum.map(docs, & &1.int) |> Enum.sort() == vals
+    assert Enum.all?(docs, & &1.content == "updated")
+
+    {^count, docs} = from(d in Doc) |> TestRepo.delete_all(returning: true)
+    assert Enum.map(docs, & &1.int) |> Enum.sort() == vals
+    assert Enum.all?(docs, & &1.content == "updated")
+  end
+
   test "use Arango _key" do
     doc1 = TestRepo.insert!(%Doc{content: "1"})
 

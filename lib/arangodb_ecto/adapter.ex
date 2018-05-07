@@ -78,7 +78,7 @@ defmodule ArangoDB.Ecto.Adapter do
           {:cache, prepared} | {:nocache, prepared}
   def prepare(cmd, query) do
     aql = apply(ArangoDB.Ecto.Query, cmd, [query])
-    {:nocache, {cmd, aql}}
+    {:nocache, aql}
   end
 
   @spec execute(repo, query_meta, query, params :: list(), process | nil, options) :: result when
@@ -86,13 +86,14 @@ defmodule ArangoDB.Ecto.Adapter do
           query: {:nocache, prepared} |
                  {:cached, (prepared -> :ok), cached} |
                  {:cache, (cached -> :ok), prepared}
-  def execute(repo, %{prefix: prefix}, {:nocache, {cmd, aql}}, params, mapper, _options) do
+  def execute(repo, %{prefix: prefix}, {:nocache, aql}, params, mapper, _options) do
     Logger.debug(aql)
     cursor = make_cursor(aql, params)
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, prefix)
+    endpoint = Utils.get_endpoint(repo, prefix)
+    endpoint
     |> Arangoex.Cursor.cursor_create(cursor)
-    |> to_result(cmd, mapper)
+    |> process_result(mapper, endpoint)
   end
 
   @spec insert_all(repo, schema_meta, header :: [atom], [fields], on_conflict, returning, options) ::
@@ -104,7 +105,7 @@ defmodule ArangoDB.Ecto.Adapter do
       do: [returnNew: true],
       else: []
     # TODO - apply Arango specific options
-    Logger.debug("Inserting documents #{inspect docs} into collection #{collection}")
+    Logger.debug(fn -> ["Inserting documents ", inspect(docs), " into collection ", collection] end)
     Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, opts)
     |> handle_insert_result(returning)
@@ -114,89 +115,92 @@ defmodule ArangoDB.Ecto.Adapter do
           {:ok, fields} | {:invalid, constraints} | no_return
   def insert(repo, %{source: {prefix, collection}}, fields, _on_conflict, returning, _options) do
     document = Enum.into(fields, %{})
-    Logger.debug("Inserting document #{inspect document} into collection #{collection}")
+    Logger.debug(fn -> ["Inserting document ", inspect(document), " into collection ", collection] end)
     # TODO - apply Arango specific options
     Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, document, [])
-    |> to_result(:insert, returning)
-  end
-
-  @spec delete(repo, schema_meta, filters, options) ::
-          {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
-  def delete(repo, %{source: {prefix, collection}}, [{:_key, key}], _options) do
-    Logger.debug("Deleting document with key #{key} from collection #{collection}")
-    doc = %{_key: key, _id: "#{collection}/#{key}"}
-    # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, prefix)
-    |> Arangoex.Document.delete(doc)
-    |> to_result(:delete, [])
-  end
-
-  def delete(_repo, _schema_meta, _filters, _options) do
-    raise "delete with multiple filters is not yet implemented"
+    |> process_single_document_result(returning)
   end
 
   @spec update(repo, schema_meta, fields, filters, returning, options) ::
-          {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
+         {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
   def update(repo, %{source: {prefix, collection}}, fields, [{:_key, key}], returning, _options) do
     document = Enum.into(fields, %{})
     old = %{_key: key, _id: "#{collection}/#{key}"}
-    Logger.debug("Updating document #{inspect old} to: #{inspect document}")
+    Logger.debug(fn -> ["Updating document ", inspect(old), " to: ", inspect(document)] end)
     # TODO - apply Arango specific options
     Utils.get_endpoint(repo, prefix)
     |> Arangoex.Document.update(old, document, [])
-    |> to_result(:update, returning)
+    |> process_single_document_result(returning)
   end
   def update(_repo, _schema_meta, _fields, _filters, _returning, _options) do
     raise "update with multiple filters is not yet implemented"
   end
 
+  @spec delete(repo, schema_meta, filters, options) ::
+          {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
+  def delete(repo, %{source: {prefix, collection}}, [{:_key, key}], _options) do
+    Logger.debug(fn -> ["Deleting document with key ", key, " from collection ", collection] end)
+    doc = %{_key: key, _id: "#{collection}/#{key}"}
+    # TODO - apply Arango specific options
+    Utils.get_endpoint(repo, prefix)
+    |> Arangoex.Document.delete(doc)
+    |> case do
+      {:ok, _} -> {:ok, []}
+      {:error, err} -> raise_error(err)
+    end
+  end
+  def delete(_repo, _schema_meta, _filters, _options) do
+    raise "delete with multiple filters is not yet implemented"
+  end
+
+  #
+  # single document insert / update
+
+  defp process_single_document_result({:ok, doc}, fields),
+    do: {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
+    
+  defp process_single_document_result({:error, %{"errorNum" => 1210, "errorMessage" => msg}}, _),
+    do: {:invalid, [unique: msg]}
+
+  defp process_single_document_result({:error, err}, _),
+    do: raise_error(err)
+
+  #
+  # other queries that can return multiple documents
+
+  defp process_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => []}}, nil, _endpoint) do
+    {count, nil}
+  end
+
+  defp process_result({:ok, %{"hasMore" => true, "result" => docs, "id" => id}}, mapper, endpoint) do
+    Arangoex.Cursor.cursor_next(endpoint, id)
+    |> process_cursor_result(mapper, endpoint, [docs])
+  end
+  defp process_result({:ok, %{"result" => docs}}, mapper, _endpoint),
+    do: decode_map(docs, mapper)
+
+  defp process_result({:error, err}, _mapper, _endpoint),
+    do: raise_error(err)
+
+  defp process_cursor_result({:ok, %{"hasMore" => true, "result" => docs, "id" => id}}, mapper, endpoint, nested_docs) do
+    Arangoex.Cursor.cursor_next(endpoint, id)
+    |> process_cursor_result(mapper, endpoint, [docs | nested_docs])
+  end
+  defp process_cursor_result({:ok, %{"result" => docs}}, mapper, _endpoint, nested_docs) do
+    {cnt, docs} = [docs | nested_docs]
+      |> :lists.reverse()
+      |> Enum.reduce({0, []}, &decode_map(&1, mapper, &2))
+    {cnt, :lists.reverse(docs)}
+  end
+  defp process_cursor_result({:error, err}, _mapper, _endpoint, _docs), do: raise_error(err)
+
   #
   # Helpers
   #
 
-  #
-  # insert / update
-
-  defp to_result({:ok, doc}, cmd, fields) when cmd in [:insert, :update],
-    do: {:ok, Enum.map(fields, & {&1, Map.get(doc, &1)})}
-
-  #
-  # delete
-
-  defp to_result({:ok, _}, :delete, _), do:
-    {:ok, []}
-
-  #
-  # all
-
-  defp to_result({:ok, %{"result" => []}}, :all, _),
-    do: {0, []}
-  defp to_result({:ok, %{"hasMore" => true}}, :all, _),
-    do: raise "Query resulted in more entries than could be returned in a single batch, but cursors are not yet supported."
-  defp to_result({:ok, %{"result" => docs}}, :all, mapper),
-    do: {length(docs), decode_map(docs, mapper)}    
-
-  #
-  # update_all / delete_all
-
-  defp to_result({:ok, %{"extra" => %{"stats" => %{"writesExecuted" => count}}, "result" => docs}}, cmd, mapper)
-    when cmd in [:update_all, :delete_all]
-  do
-    cond do
-      mapper == nil -> {count, nil}
-      true -> {count, decode_map(docs, mapper)}
-    end
-  end
-
-  #
-  # errors
-
-  defp to_result({:error, %{"code" => 409}}, _, _),
-    do: {:invalid, [unique: "constraint violated"]}
-
-  defp to_result({:error, err}, _, _),
-    do: raise err["errorMessage"]
+  defp raise_error(%{"errorMessage" => msg}),
+    do: raise msg
 
   defp build_documents(fields) when is_list(fields) do
     Enum.map(fields, fn
@@ -205,17 +209,14 @@ defmodule ArangoDB.Ecto.Adapter do
      end)
   end
 
-  defp decode_map(data, nil), do: data
+  defp decode_map(data, nil), do: {:erlang.length(data), data}
   defp decode_map(data, mapper) do
-    decode_map(data, mapper, []) |> :lists.reverse()
+    {cnt, list} = decode_map(data, mapper, {0, []})
+    {cnt, :lists.reverse(list)}
   end
 
-  defp decode_map([row | data], mapper, decoded) do
-    decode_map(data, mapper, [mapper.(row) | decoded])
-  end
-  defp decode_map([], _, decoded) do
-    decoded
-  end
+  defp decode_map([row | data], mapper, {cnt, decoded}), do: decode_map(data, mapper, {cnt + 1, [mapper.(row) | decoded]})
+  defp decode_map([], _, decoded), do: decoded
   
   defp handle_insert_result(docs, returning) when is_list(docs) do
     errors = docs
