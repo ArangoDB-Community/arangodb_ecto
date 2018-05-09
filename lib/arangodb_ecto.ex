@@ -20,7 +20,14 @@ defmodule ArangoDB.Ecto do
   end
 
   def query(repo, aql, vars \\ []) do
-    ArangoDB.Ecto.Adapter.exec_query(repo, aql, vars)
+    res = ArangoDB.Ecto.Adapter.exec_query!(repo, aql, vars)
+    {:ok, res}
+  rescue
+    e in RuntimeError -> {:error, e.message}
+  end
+
+  def query!(repo, aql, vars \\ []) do
+    ArangoDB.Ecto.Adapter.exec_query!(repo, aql, vars)
   end
 
   @behaviour Ecto.Adapter

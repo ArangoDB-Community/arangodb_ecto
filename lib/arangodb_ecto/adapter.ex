@@ -20,18 +20,14 @@ defmodule ArangoDB.Ecto.Adapter do
   @typep repo :: Ecto.Adapter.repo()
   @typep options :: Ecto.Adapter.options()
 
-  def exec_query(repo, aql, vars) do
+  def exec_query!(repo, aql, vars) do
     Logger.debug(aql)
     cursor = make_cursor(aql, vars)
-
-    result =
-      Utils.get_endpoint(repo)
-      |> Arangoex.Cursor.cursor_create(cursor)
-
-    case result do
-      {:ok, %{"result" => docs}} -> {:ok, docs}
-      {:error, err} -> {:error, err["errorMessage"]}
-    end
+    endpoint = Utils.get_endpoint(repo)
+    
+    Arangoex.Cursor.cursor_create(endpoint, cursor)
+    |> process_result(& &1, endpoint)
+    |> elem(1)
   end
 
   # Adapter callbacks
@@ -194,7 +190,7 @@ defmodule ArangoDB.Ecto.Adapter do
   defp process_single_document_result({:ok, doc}, fields),
     do: {:ok, Enum.map(fields, &{&1, Map.get(doc, &1)})}
 
-  defp process_single_document_result({:error, %{"errorNum" => 1210, "errorMessage" => msg}}, _),
+  defp process_single_document_result({:error, %{"errorNum" => 1210, "errorMessage" => msg} = res}, _),
     do: {:invalid, [unique: msg]}
 
   defp process_single_document_result({:error, err}, _), do: raise_error(err)

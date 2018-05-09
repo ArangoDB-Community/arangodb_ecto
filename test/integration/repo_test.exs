@@ -745,6 +745,10 @@ defmodule Ecto.Integration.RepoTest do
     vals = 1..count |> Enum.map(& &1)
     assert Enum.map(docs, & &1.int) == vals
 
+    {:ok, docs} = ArangoDB.Ecto.query(TestRepo, "FOR d in docs SORT d.int RETURN d.int")
+    assert :erlang.length(docs) == count
+    assert docs == vals
+
     {^count, docs} =
       from(d in Doc) |> TestRepo.update_all([set: [content: "updated"]], returning: true)
 
