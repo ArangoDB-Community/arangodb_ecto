@@ -29,10 +29,17 @@ defmodule ArangoDB.Ecto.Migration do
     endpoint = Utils.get_endpoint(repo)
     not_exists_cmd = is_not_exists(command)
     result = execute(endpoint, command, opts)
+
     case result do
-      {:ok, _} -> :ok
-      {:error, %{"code" => 409}} when not_exists_cmd -> :ok # collection/index already exists
-      {:error, err} -> raise Ecto.MigrationError, message: err["errorMessage"]
+      {:ok, _} ->
+        :ok
+
+      # collection/index already exists
+      {:error, %{"code" => 409}} when not_exists_cmd ->
+        :ok
+
+      {:error, err} ->
+        raise Ecto.MigrationError, message: err["errorMessage"]
     end
   end
 
@@ -41,55 +48,72 @@ defmodule ArangoDB.Ecto.Migration do
   defp is_not_exists(_), do: false
 
   defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, _opts)
-      when cmd in [:create, :create_if_not_exists]
-  do
+       when cmd in [:create, :create_if_not_exists] do
     # TODO: use table options
-    collection_type = case options do
-      nil -> 2 # document collection
-      "edge" -> 3 # edge collection
-      _ -> raise "Invalid options value `#{options}`."
-    end
+    collection_type =
+      case options do
+        # document collection
+        nil ->
+          2
+
+        # edge collection
+        "edge" ->
+          3
+
+        _ ->
+          raise "Invalid options value `#{options}`."
+      end
+
     Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type})
   end
 
   defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name}}, _opts)
-      when cmd in [:drop, :drop_if_exists]
-  do
+       when cmd in [:drop, :drop_if_exists] do
     Arangoex.Collection.drop(endpoint, %Arangoex.Collection{name: name})
   end
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, _opts)
-    when cmd in [:create, :create_if_not_exists]
-  do
+  defp execute(
+         endpoint,
+         {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index},
+         _opts
+       )
+       when cmd in [:create, :create_if_not_exists] do
     body = make_index(index)
     Arangoex.Index.create_general(endpoint, collection, Map.put(body, :fields, fields))
   end
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index}, _opts)
-    when cmd in [:drop, :drop_if_exists]
-  do
-    body = make_index(index)
+  defp execute(
+         endpoint,
+         {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index},
+         _opts
+       )
+       when cmd in [:drop, :drop_if_exists] do
+    body =
+      make_index(index)
       |> Map.put(:fields, fields)
       |> Poison.encode!()
       |> Poison.decode!()
       |> MapSet.new()
 
-    {:ok, %{"error" => false, "indexes" => indexes}} = Arangoex.Index.indexes(endpoint, collection)
+    {:ok, %{"error" => false, "indexes" => indexes}} =
+      Arangoex.Index.indexes(endpoint, collection)
+
     matching_index = Enum.filter(indexes, &MapSet.subset?(body, MapSet.new(&1)))
+
     case {cmd, matching_index} do
       {_, [index]} -> Arangoex.Index.delete(endpoint, index["id"])
       {:drop_if_exists, []} -> :ok
-      {:drop, []} -> raise "No index found matching #{inspect index}"
+      {:drop, []} -> raise "No index found matching #{inspect(index)}"
     end
   end
 
   defp execute(_, {:alter, _, _}, options) do
-    if options[:log], do: Logger.warn "ALTER command has no effect in ArangoDB."
+    if options[:log], do: Logger.warn("ALTER command has no effect in ArangoDB.")
     {:ok, nil}
   end
 
   defp execute(_, cmd, _) do
-    raise "#{inspect __MODULE__}: unspported DDL operation #{inspect cmd}"
+    raise "#{inspect(__MODULE__)}: unspported DDL operation #{inspect(cmd)}"
   end
 
   #
@@ -97,31 +121,27 @@ defmodule ArangoDB.Ecto.Migration do
   #
 
   defp make_index(%{where: where}) when where != nil,
-    do: raise "{inspect __MODULE__} does not support conditional indices."
+    do: raise("{inspect __MODULE__} does not support conditional indices.")
 
   # default to :hash when no index type is specified
-  defp make_index(%{using: nil} = index), do:
-    make_index(%Ecto.Migration.Index{index | using: :hash}, [])
-  defp make_index(%{using: type} = index) when is_atom(type), do:
-    make_index(index, [])
-  defp make_index(%{using: {type, opts}} = index) when is_atom(type) and is_list(opts), do:
-    make_index(%{index | using: type}, opts)
+  defp make_index(%{using: nil} = index),
+    do: make_index(%Ecto.Migration.Index{index | using: :hash}, [])
+
+  defp make_index(%{using: type} = index) when is_atom(type), do: make_index(index, [])
+
+  defp make_index(%{using: {type, opts}} = index) when is_atom(type) and is_list(opts),
+    do: make_index(%{index | using: type}, opts)
 
   defp make_index(%{using: :hash, unique: unique}, options) do
-    %{type: "hash",
-      unique: unique,
-      sparse: Keyword.get(options, :sparse, false)}
+    %{type: "hash", unique: unique, sparse: Keyword.get(options, :sparse, false)}
   end
 
   defp make_index(%{using: :skip_list, unique: unique}, options) do
-    %{type: "skiplist",
-      unique: unique,
-      sparse: Keyword.get(options, :sparse, false)}
+    %{type: "skiplist", unique: unique, sparse: Keyword.get(options, :sparse, false)}
   end
 
   defp make_index(%{using: :fulltext, unique: unique}, options) do
-    if (unique), do: raise "Fulltext indices cannot be unique."
-    %{type: "fulltext",
-      minLength: Keyword.get(options, :min_length, nil)}
+    if unique, do: raise("Fulltext indices cannot be unique.")
+    %{type: "fulltext", minLength: Keyword.get(options, :min_length, nil)}
   end
 end

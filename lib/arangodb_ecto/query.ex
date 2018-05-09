@@ -15,9 +15,9 @@ defmodule ArangoDB.Ecto.Query do
   def all(query) do
     sources = create_names(query)
 
-    from     = from(query, sources)
-    join     = join(query, sources)
-    where    = where(query, sources)
+    from = from(query, sources)
+    join = join(query, sources)
+    where = where(query, sources)
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
     select = select(query, sources)
@@ -31,12 +31,12 @@ defmodule ArangoDB.Ecto.Query do
   def delete_all(query) do
     sources = create_names(query)
 
-    from     = from(query, sources)
-    join     = join(query, sources)
-    where    = where(query, sources)
+    from = from(query, sources)
+    join = join(query, sources)
+    where = where(query, sources)
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
-    remove   = remove(query, sources)
+    remove = remove(query, sources)
     return = returning("OLD", query, sources)
 
     IO.iodata_to_binary([from, join, where, order_by, offset_and_limit, remove, return])
@@ -48,12 +48,12 @@ defmodule ArangoDB.Ecto.Query do
   def update_all(query) do
     sources = create_names(query)
 
-    from     = from(query, sources)
-    join     = join(query, sources)
-    where    = where(query, sources)
+    from = from(query, sources)
+    join = join(query, sources)
+    where = where(query, sources)
     order_by = order_by(query, sources)
     offset_and_limit = offset_and_limit(query, sources)
-    update   = update(query, sources)
+    update = update(query, sources)
     return = returning("NEW", query, sources)
 
     IO.iodata_to_binary([from, join, where, order_by, offset_and_limit, update, return])
@@ -73,9 +73,14 @@ defmodule ArangoDB.Ecto.Query do
         {coll, schema} ->
           name = [String.first(coll) | Integer.to_string(pos)]
           {quote_collection(coll), name, schema}
-        {:fragment, _, _} -> raise "Fragments are not supported."
-        %Ecto.SubQuery{} -> raise "Subqueries are not supported."
+
+        {:fragment, _, _} ->
+          raise "Fragments are not supported."
+
+        %Ecto.SubQuery{} ->
+          raise "Subqueries are not supported."
       end
+
     [current | create_names(sources, pos + 1, limit)]
   end
 
@@ -89,14 +94,22 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp join(%Query{joins: []}, _sources), do: []
+
   defp join(%Query{joins: joins} = query, sources) do
-    [?\s | intersperse_map(joins, ?\s, fn
-      %JoinExpr{on: %QueryExpr{expr: expr}, qual: qual, ix: ix, source: source} ->
-        {join, name} = get_source(query, sources, ix, source)
-        #[join_qual(qual), join, " AS ", name, " FILTER " | expr(expr, sources, query)]
-        if (qual != :inner), do: raise "Only inner joins are supported."
-        ["FOR ", name, " IN ", join, " FILTER " | expr(expr, sources, query)]
-    end)]
+    [
+      ?\s
+      | intersperse_map(joins, ?\s, fn %JoinExpr{
+                                         on: %QueryExpr{expr: expr},
+                                         qual: qual,
+                                         ix: ix,
+                                         source: source
+                                       } ->
+          {join, name} = get_source(query, sources, ix, source)
+          # [join_qual(qual), join, " AS ", name, " FILTER " | expr(expr, sources, query)]
+          if qual != :inner, do: raise("Only inner joins are supported.")
+          ["FOR ", name, " IN ", join, " FILTER " | expr(expr, sources, query)]
+        end)
+    ]
   end
 
   defp where(%Query{wheres: wheres} = query, sources) do
@@ -104,29 +117,40 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp order_by(%Query{order_bys: []}, _sources), do: []
+
   defp order_by(%Query{order_bys: order_bys} = query, sources) do
-    [" SORT " |
-     intersperse_map(order_bys, ", ", fn
-       %QueryExpr{expr: expr} ->
-         intersperse_map(expr, ", ", &order_by_expr(&1, sources, query))
-     end)]
+    [
+      " SORT "
+      | intersperse_map(order_bys, ", ", fn %QueryExpr{expr: expr} ->
+          intersperse_map(expr, ", ", &order_by_expr(&1, sources, query))
+        end)
+    ]
   end
+
   defp order_by_expr({dir, expr}, sources, query) do
     str = expr(expr, sources, query)
+
     case dir do
-      :asc  -> str
+      :asc -> str
       :desc -> [str | " DESC"]
     end
   end
 
   defp offset_and_limit(%Query{offset: nil, limit: nil}, _sources), do: []
+
   defp offset_and_limit(%Query{offset: nil, limit: %QueryExpr{expr: expr}} = query, sources) do
     [" LIMIT " | expr(expr, sources, query)]
   end
+
   defp offset_and_limit(%Query{offset: %QueryExpr{expr: _}, limit: nil} = query, _) do
     error!(query, "offset can only be used in conjunction with limit")
   end
-  defp offset_and_limit(%Query{offset: %QueryExpr{expr: offset_expr}, limit: %QueryExpr{expr: limit_expr}} = query, sources) do
+
+  defp offset_and_limit(
+         %Query{offset: %QueryExpr{expr: offset_expr}, limit: %QueryExpr{expr: limit_expr}} =
+           query,
+         sources
+       ) do
     [" LIMIT ", expr(offset_expr, sources, query), ", ", expr(limit_expr, sources, query)]
   end
 
@@ -138,37 +162,45 @@ defmodule ArangoDB.Ecto.Query do
   defp update(%Query{from: from} = query, sources) do
     {coll, name} = get_source(query, sources, 0, from)
     fields = update_fields(query, sources)
-    [ " UPDATE ", name, " WITH {", fields, "} IN " | coll]
+    [" UPDATE ", name, " WITH {", fields, "} IN " | coll]
   end
 
-  defp returning(_, %Query{select: nil}, _sources),
-    do: []
+  defp returning(_, %Query{select: nil}, _sources), do: []
+
   defp returning(version, query, sources) do
     {source, _, schema} = elem(sources, 0)
     select(query, {{source, version, schema}})
   end
 
-  defp select(%Query{select: nil}, _sources),
-    do: [" RETURN []" ]
+  defp select(%Query{select: nil}, _sources), do: [" RETURN []"]
+
   defp select(%Query{select: %{fields: fields}, distinct: distinct, from: from} = query, sources),
     do: select_fields(fields, distinct, from, sources, query)
 
   defp select_fields(fields, distinct, _from, sources, query) do
-    values = intersperse_map(fields, ", ", fn
-      {_key, value} ->
-        [expr(value, sources, query)]
-      value ->
-        [expr(value, sources, query)]
-    end)
+    values =
+      intersperse_map(fields, ", ", fn
+        {_key, value} ->
+          [expr(value, sources, query)]
+
+        value ->
+          [expr(value, sources, query)]
+      end)
+
     [" RETURN ", distinct(distinct, sources, query), "[ ", values | " ]"]
   end
 
   defp update_fields(%Query{from: from, updates: updates} = query, sources) do
     {_from, name} = get_source(query, sources, 0, from)
-    fields = for(%{expr: expr} <- updates,
-                 {op, kw} <- expr,
-                 {key, value} <- kw,
-                 do: update_op(op, name, quote_name(key), value, sources, query))
+
+    fields =
+      for(
+        %{expr: expr} <- updates,
+        {op, kw} <- expr,
+        {key, value} <- kw,
+        do: update_op(op, name, quote_name(key), value, sources, query)
+      )
+
     Enum.intersperse(fields, ", ")
   end
 
@@ -190,11 +222,12 @@ defmodule ArangoDB.Ecto.Query do
     do: ["REMOVE_VALUE(", name, ?., quoted_key, ", ", expr(value, sources, query), ", 1)"]
 
   defp update_op_value(cmd, _name, _quoted_key, _value, _sources, query),
-    do: error!(query, "Unknown update operation #{inspect cmd} for AQL")
+    do: error!(query, "Unknown update operation #{inspect(cmd)} for AQL")
 
   defp distinct(nil, _sources, _query), do: []
-  defp distinct(%QueryExpr{expr: true}, _sources, _query),  do: "DISTINCT "
+  defp distinct(%QueryExpr{expr: true}, _sources, _query), do: "DISTINCT "
   defp distinct(%QueryExpr{expr: false}, _sources, _query), do: []
+
   defp distinct(%QueryExpr{expr: exprs}, _sources, query) when is_list(exprs) do
     error!(query, "DISTINCT with multiple fields is not supported by AQL")
   end
@@ -205,14 +238,19 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp boolean(_name, [], _sources, _query), do: []
+
   defp boolean(name, [%{expr: expr, op: op} | query_exprs], sources, query) do
-    [name,
-     Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
-       %BooleanExpr{expr: expr, op: op}, {op, acc} ->
-         {op, [acc, operator_to_boolean(op) | paren_expr(expr, sources, query)]}
-       %BooleanExpr{expr: expr, op: op}, {_, acc} ->
-         {op, [?(, acc, ?), operator_to_boolean(op) | paren_expr(expr, sources, query)]}
-     end) |> elem(1)]
+    [
+      name,
+      Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
+        %BooleanExpr{expr: expr, op: op}, {op, acc} ->
+          {op, [acc, operator_to_boolean(op) | paren_expr(expr, sources, query)]}
+
+        %BooleanExpr{expr: expr, op: op}, {_, acc} ->
+          {op, [?(, acc, ?), operator_to_boolean(op) | paren_expr(expr, sources, query)]}
+      end)
+      |> elem(1)
+    ]
   end
 
   defp operator_to_boolean(:and), do: " && "
@@ -226,17 +264,17 @@ defmodule ArangoDB.Ecto.Query do
   # Expressions
   #
 
-  binary_ops =
-    [==: " == ",
-     !=: " != ",
-     <=: " <= ",
-     >=: " >= ",
-     <: " < ",
-     >: " > ",
-     and: " && ",
-     or: " || ",
-     like: " LIKE "
-    ]
+  binary_ops = [
+    ==: " == ",
+    !=: " != ",
+    <=: " <= ",
+    >=: " >= ",
+    <: " < ",
+    >: " > ",
+    and: " && ",
+    or: " || ",
+    like: " LIKE "
+  ]
 
   @binary_ops Keyword.keys(binary_ops)
 
@@ -251,19 +289,22 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query)
-    when is_atom(field)
-  do
+       when is_atom(field) do
     {_, name, _} = elem(sources, idx)
     [name, ?. | quote_name(field)]
   end
 
-
   defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
     {source, name, schema} = elem(sources, idx)
+
     if is_nil(schema) and is_nil(fields) do
-      error!(query, "ArangoDB does not support selecting all fields from #{source} without a schema. " <>
-                    "Please specify a schema or specify exactly which fields you want to select")
+      error!(
+        query,
+        "ArangoDB does not support selecting all fields from #{source} without a schema. " <>
+          "Please specify a schema or specify exactly which fields you want to select"
+      )
     end
+
     intersperse_map(fields, ", ", &[name, ?. | quote_name(&1)])
   end
 
@@ -273,11 +314,11 @@ defmodule ArangoDB.Ecto.Query do
 
   defp expr({:fragment, _, parts}, sources, query) do
     Enum.map(parts, fn
-      {:raw, part}  -> part
+      {:raw, part} -> part
       {:expr, expr} -> expr(expr, sources, query)
     end)
   end
-  
+
   defp expr({:is_nil, _, [arg]}, sources, query) do
     [expr(arg, sources, query) | " == NULL"]
   end
@@ -304,6 +345,7 @@ defmodule ArangoDB.Ecto.Query do
       {:binary_op, op} ->
         [left, right] = args
         [op_to_binary(left, sources, query), op | op_to_binary(right, sources, query)]
+
       {:fun, fun} ->
         [fun, ?(, [], intersperse_map(args, ", ", &expr(&1, sources, query)), ?)]
     end
@@ -333,36 +375,33 @@ defmodule ArangoDB.Ecto.Query do
     [expr(value, sources, query)]
   end
 
-  defp expr(nil, _sources, _query),   do: "NULL"
-  defp expr(true, _sources, _query),  do: "TRUE"
+  defp expr(nil, _sources, _query), do: "NULL"
+  defp expr(true, _sources, _query), do: "TRUE"
   defp expr(false, _sources, _query), do: "FALSE"
 
   defp op_to_binary({op, _, [_, _]} = expr, sources, query) when op in @binary_ops,
     do: paren_expr(expr, sources, query)
-  defp op_to_binary(expr, sources, query),
-    do: expr(expr, sources, query)
 
-  defp quote_name(name) when is_atom(name),
-    do: quote_name(Atom.to_string(name))
+  defp op_to_binary(expr, sources, query), do: expr(expr, sources, query)
+
+  defp quote_name(name) when is_atom(name), do: quote_name(Atom.to_string(name))
+
   defp quote_name(name) do
-    if String.contains?(name, "`"),
-      do: error!(nil, "bad field name #{inspect name}")
+    if String.contains?(name, "`"), do: error!(nil, "bad field name #{inspect(name)}")
     [?`, name, ?`]
   end
 
-  defp quote_collection(name) when is_atom(name),
-    do: quote_collection(Atom.to_string(name))
+  defp quote_collection(name) when is_atom(name), do: quote_collection(Atom.to_string(name))
+
   defp quote_collection(name) do
-    if String.contains?(name, "`"),
-       do: error!(nil, "bad table name #{inspect name}")
+    if String.contains?(name, "`"), do: error!(nil, "bad table name #{inspect(name)}")
     [?`, name, ?`]
   end
 
   defp intersperse_map(list, separator, mapper, acc \\ [])
-  defp intersperse_map([], _separator, _mapper, acc),
-    do: acc
-  defp intersperse_map([elem], _separator, mapper, acc),
-    do: [acc | mapper.(elem)]
+  defp intersperse_map([], _separator, _mapper, acc), do: acc
+  defp intersperse_map([elem], _separator, mapper, acc), do: [acc | mapper.(elem)]
+
   defp intersperse_map([elem | rest], separator, mapper, acc),
     do: intersperse_map(rest, separator, mapper, [acc, mapper.(elem), separator])
 
@@ -375,6 +414,7 @@ defmodule ArangoDB.Ecto.Query do
   defp error!(nil, message) do
     raise ArgumentError, message
   end
+
   defp error!(query, message) do
     raise Ecto.QueryError, query: query, message: message
   end
