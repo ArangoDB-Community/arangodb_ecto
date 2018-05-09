@@ -2,9 +2,13 @@
 
 Ecto 2.x adapter for [ArangoDB](https://www.arangodb.com/).
 
+The aim for this adapter is for it to be a drop-in replacement for the default
+Postgres adapter.
+
 It converts `Ecto.Query` structs to [AQL](https://docs.arangodb.com/3.1/AQL).
-At the moment the `from`, `where`, `order_by`, `limit`
-`offset` and `select` clauses are supported.
+
+At the moment the `from`, `where`, `order_by`, `limit`, 
+`offset`, `select` and `preload` clauses are supported.
 
 For example, this Ecto query:
 ```elixir
@@ -22,7 +26,8 @@ FOR u0 IN `users`
   LIMIT 10
   RETURN { `name`: u0.`name`, `age`: u0.`age` }
 ```
-      
+
+
 ## Usage
 
 In the repository configuration, you need to specify the `:adapter`:
@@ -33,9 +38,9 @@ config :my_app, MyApp.Repo,
   database: "my_app"
   ...
 ```
-   
+
 The following options can be defined to configure the connection to ArangoDB.
-Unless specified otherwise, the show default values are used.
+Unless specified otherwise, the shown default values are used.
 ```elixir
 host: "localhost",
 port: 8529,
@@ -81,14 +86,22 @@ defmodule Post do
 end
 ```
 
+
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `arangodb_ecto` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `arangodb_ecto` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [{:arangodb_ecto, "~> 0.1.0"}]
+end
+```
+
+To use the latest version, available on github:
+
+```elixir
+def deps do
+  [{:arangodb_ecto, git: "https://github.com/ArangoDB-Community/arangodb_ecto.git"},
 end
 ```
 
@@ -98,9 +111,17 @@ end
 * on conflict
 * upserts
 
+
 ## Testing
+
 Before running the tests, configure access to your Arango database by setting
 these environment variables:
 - `ARANGO_SRV`
 - `ARANGO_USR`
 - `ARANGO_PWD`
+
+More conveniently, you can start an unauthenticated Docker instance of ArangoDB
+with
+```
+docker run --publish 8529:8529 --env ARANGO_NO_AUTH=1 arangodb/arangodb 
+```

@@ -9,8 +9,10 @@ defmodule ArangoDB.Ecto do
   alias ArangoDB.Ecto.Utils
 
   def truncate(repo, coll) do
-    result = Utils.get_endpoint(repo)
+    result =
+      Utils.get_endpoint(repo)
       |> Arangoex.Collection.truncate(%Arangoex.Collection{name: coll})
+
     case result do
       {:ok, _} -> :ok
       {:error, _} -> result
@@ -33,12 +35,21 @@ defmodule ArangoDB.Ecto do
   defdelegate delete(repo, schema_meta, filters, options), to: ArangoDB.Ecto.Adapter
   defdelegate dumpers(primitive_type, ecto_type), to: ArangoDB.Ecto.Adapter
   defdelegate ensure_all_started(repo, type), to: ArangoDB.Ecto.Adapter
-  defdelegate execute(repo, query_meta, query, params, process, options), to: ArangoDB.Ecto.Adapter
-  defdelegate insert(repo, schema_meta, fields, on_conflict, returning, options), to: ArangoDB.Ecto.Adapter
-  defdelegate insert_all(repo, schema_meta, header, list, on_conflict, returning, options), to: ArangoDB.Ecto.Adapter
+
+  defdelegate execute(repo, query_meta, query, params, process, options),
+    to: ArangoDB.Ecto.Adapter
+
+  defdelegate insert(repo, schema_meta, fields, on_conflict, returning, options),
+    to: ArangoDB.Ecto.Adapter
+
+  defdelegate insert_all(repo, schema_meta, header, list, on_conflict, returning, options),
+    to: ArangoDB.Ecto.Adapter
+
   defdelegate loaders(primitive_type, ecto_type), to: ArangoDB.Ecto.Adapter
   defdelegate prepare(atom, query), to: ArangoDB.Ecto.Adapter
-  defdelegate update(repo, schema_meta, fields, filters, returning, options), to: ArangoDB.Ecto.Adapter
+
+  defdelegate update(repo, schema_meta, fields, filters, returning, options),
+    to: ArangoDB.Ecto.Adapter
 
   @behaviour Ecto.Adapter.Migration
 
