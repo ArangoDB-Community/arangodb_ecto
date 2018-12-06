@@ -26,7 +26,7 @@ defmodule ArangodbEcto.Mixfile do
   defp deps do
     [
       {:ecto, "~> 2.2"},
-      {:arangoex, github: "mpoeter/arangoex"},
+      {:arango, github: "ijcd/arangoex"},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false}
     ]

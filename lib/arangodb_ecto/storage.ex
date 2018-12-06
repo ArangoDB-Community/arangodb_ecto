@@ -9,8 +9,8 @@ defmodule ArangoDB.Ecto.Storage do
   def storage_up(options) do
     repo = Keyword.fetch!(options, :repo)
     {:ok, _} = ArangoDB.Ecto.ensure_all_started(repo, :temporary)
-    endpoint = Utils.get_endpoint(repo)
-    response = Arangoex.Database.create(endpoint, %{name: endpoint.database_name})
+    config = Utils.get_config(repo)
+    response = Arango.Database.create(name: config[:database_name]) |> Arango.request(config)
 
     case response do
       {:ok, _} -> :ok
@@ -23,8 +23,8 @@ defmodule ArangoDB.Ecto.Storage do
   def storage_down(options) do
     repo = Keyword.fetch!(options, :repo)
     {:ok, _} = ArangoDB.Ecto.ensure_all_started(repo, :temporary)
-    endpoint = Utils.get_endpoint(repo)
-    response = Arangoex.Database.drop(endpoint, endpoint.database_name)
+    config = Utils.get_config(repo)
+    response = Arango.Database.drop(config[:database_name]) |> Arango.request(config)
 
     case response do
       {:ok, _} -> :ok

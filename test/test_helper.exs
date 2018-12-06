@@ -37,7 +37,7 @@ Application.put_env(
   :ecto,
   PoolRepo,
   adapter: ArangoDB.Ecto,
-  database_name: "pool"
+  database: "pool"
 )
 
 defmodule Ecto.Integration.PoolRepo do
