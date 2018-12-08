@@ -47,24 +47,25 @@ defmodule ArangoDB.Ecto.Migration do
   defp is_not_exists({:create_if_not_exists, _, _}), do: true
   defp is_not_exists(_), do: false
 
+  @key_types ["traditional", "autoincrement", "padded", "uuid"]
+
   defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, _opts)
        when cmd in [:create, :create_if_not_exists] do
-    # TODO: use table options
     collection_type =
-      case options do
-        # document collection
-        nil ->
-          2
-
-        # edge collection
-        "edge" ->
-          3
-
-        _ ->
-          raise "Invalid options value `#{options}`."
+      if is_binary(options) && String.contains?(options, "edge") do
+        3
+      else
+        2
       end
 
-    Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type})
+    key_type =
+      if is_binary(options) do
+        Enum.find(@key_types, &String.contains?(options, &1))
+      else
+        nil
+      end
+
+    Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type, keyOptions: %{type: key_type}})
   end
 
   defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name}}, _opts)
