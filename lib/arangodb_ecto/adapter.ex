@@ -72,11 +72,10 @@ defmodule ArangoDB.Ecto.Adapter do
   def dumpers(:utc_datetime, type) when type in [:utc_datetime, DateTime],
     do: [fn %DateTime{} = dt -> {:ok, DateTime.to_iso8601(dt)} end]
 
-  def dumpers(:naive_datetime, type) when type in [:naive_datetime, NaiveDateTime, Ecto.DateTime],
+  def dumpers(:naive_datetime, type) when type in [:naive_datetime, NaiveDateTime],
     do: [
       fn
         %NaiveDateTime{} = dt -> {:ok, NaiveDateTime.to_iso8601(dt)}
-        %Ecto.DateTime{} = dt -> {:ok, Ecto.DateTime.to_iso8601(dt)}
       end
     ]
 
