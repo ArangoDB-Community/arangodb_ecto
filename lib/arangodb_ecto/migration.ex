@@ -94,8 +94,8 @@ defmodule ArangoDB.Ecto.Migration do
     body =
       make_index(index)
       |> Map.put(:fields, fields)
-      |> Poison.encode!()
-      |> Poison.decode!()
+      |> Jason.encode!()
+      |> Jason.decode!()
       |> MapSet.new()
 
     {:ok, %{"error" => false, "indexes" => indexes}} =

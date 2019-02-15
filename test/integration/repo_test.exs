@@ -181,7 +181,7 @@ defmodule Ecto.Integration.RepoTest do
                      |> TestRepo.insert()
                    end
 
-    assert exception.message =~ "unique: unique constraint violated"
+    assert exception.message =~ "unique constraint violated"
     assert exception.message =~ "The changeset has not defined any constraint."
 
     message = ~r/constraint error when attempting to insert struct/
