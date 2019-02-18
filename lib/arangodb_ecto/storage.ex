@@ -10,12 +10,12 @@ defmodule ArangoDB.Ecto.Storage do
     repo = Keyword.fetch!(options, :repo)
     {:ok, _} = ArangoDB.Ecto.ensure_all_started(repo, :temporary)
     config = Utils.get_config(repo)
-    response = Arango.Database.create(name: config[:database_name]) |> Arango.request(config)
-
-    case response do
+    Arango.Database.create(name: config[:database_name])
+    |> Arango.request(config)
+    |> case do
       {:ok, _} -> :ok
       {:error, %{"code" => 409}} -> {:error, :already_up}
-      {:error, _} -> response
+      {:error, _} = result -> result
     end
   end
 
@@ -24,12 +24,12 @@ defmodule ArangoDB.Ecto.Storage do
     repo = Keyword.fetch!(options, :repo)
     {:ok, _} = ArangoDB.Ecto.ensure_all_started(repo, :temporary)
     config = Utils.get_config(repo)
-    response = Arango.Database.drop(config[:database_name]) |> Arango.request(config)
-
-    case response do
+    Arango.Database.drop(config[:database_name])
+    |> Arango.request(config)
+    |> case do
       {:ok, _} -> :ok
       {:error, %{"code" => 404}} -> {:error, :already_down}
-      {:error, _} -> response
+      {:error, _} = result -> result
     end
   end
 end

@@ -47,6 +47,7 @@ defmodule ArangoDB.Ecto.Migration do
   defp is_not_exists({:create_if_not_exists, _, _}), do: true
   defp is_not_exists(_), do: false
 
+  @spec execute(any, any, any) :: Arango.ok_error(any())
   defp execute(config, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, _opts)
        when cmd in [:create, :create_if_not_exists] do
     # TODO: use table options

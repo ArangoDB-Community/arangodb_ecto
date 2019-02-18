@@ -14,19 +14,17 @@ defmodule ArangoDB.Ecto.Adapter do
   @type prepared :: Ecto.Adapter.prepared()
   @type cached :: Ecto.Adapter.cached()
   @type process :: Ecto.Adapter.process()
-  @type autogenerate_id :: Ecto.Adapter.autogenerate_id()
   @type on_conflict :: Ecto.Adapter.on_conflict()
 
-  @typep repo :: Ecto.Adapter.repo()
-  @typep options :: Ecto.Adapter.options()
+  @typep repo :: Ecto.Repo.t
+  @typep options :: Keyword.t
 
   def exec_query!(repo, aql, vars) do
     Logger.debug(aql)
-    cursor = make_cursor(aql, vars)
     
     config = Utils.get_config(repo)
 
-    cursor
+    make_cursor(aql, vars)
     |> Arango.Cursor.cursor_create()
     |> Arango.Request.perform(config)
     |> process_result(& &1, config)
@@ -173,7 +171,7 @@ defmodule ArangoDB.Ecto.Adapter do
   def delete(repo, %{source: {prefix, collection}}, [{:_key, key}], _options) do
     Logger.debug(fn -> ["Deleting document with key ", key, " from collection ", collection] end)    
     # TODO - apply Arango specific options
-    %{_key: key, _id: "#{collection}/#{key}"}
+    %Arango.Document.Docref{_key: key, _id: "#{collection}/#{key}"}
     |> Arango.Document.delete()
     |> Arango.Request.perform(Utils.get_config(repo, prefix))
     |> case do
@@ -244,7 +242,9 @@ defmodule ArangoDB.Ecto.Adapter do
   # Helpers
   #
 
+  # TODO - use custom Error class
   defp raise_error(%{"errorMessage" => msg}), do: raise(msg)
+  defp raise_error(err) when is_atom(err), do: raise(Atom.to_string(err))
 
   defp build_documents(fields) when is_list(fields) do
     Enum.map(fields, fn
@@ -305,8 +305,8 @@ defmodule ArangoDB.Ecto.Adapter do
     |> elem(0)
   end
 
+  @spec make_cursor(any(), any()) :: Arango.Cursor.Cursor.t
   defp make_cursor(aql, []), do: %Arango.Cursor.Cursor{query: aql}
-
   defp make_cursor(aql, params) do
     vars =
       params
