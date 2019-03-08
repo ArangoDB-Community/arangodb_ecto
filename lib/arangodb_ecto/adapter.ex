@@ -33,7 +33,15 @@ defmodule ArangoDB.Ecto.Adapter do
 
   # Adapter callbacks
 
-  def ensure_all_started(_repo, type), do: Application.ensure_all_started(:arangodb_ecto, type)
+  def ensure_all_started(_repo, type) do
+    adapter = Application.get_env(:arango, :adapter)
+    if adapter == Tesla.Adapter.Hackney or match?({Tesla.Adapter.Hackney, _}, adapter) do
+      # Workaround for :hackney not beeing started by ecto.* mix tasks since it is only a optional dependency.
+      # TODO: find a better solution for this!
+      Application.ensure_all_started(:hackney, type)
+    end
+    Application.ensure_all_started(:arangodb_ecto, type)
+  end
 
   def child_spec(_repo, _opts),
     do: Supervisor.Spec.supervisor(Supervisor, [[], [strategy: :one_for_one]])
