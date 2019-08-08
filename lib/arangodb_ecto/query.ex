@@ -390,9 +390,7 @@ defmodule ArangoDB.Ecto.Query do
     if String.contains?(name, "`"), do: error!(nil, "bad field name #{inspect(name)}")
     [?`, name, ?`]
   end
-
-  defp quote_collection(name) when is_atom(name), do: quote_collection(Atom.to_string(name))
-
+  
   defp quote_collection(name) do
     if String.contains?(name, "`"), do: error!(nil, "bad table name #{inspect(name)}")
     [?`, name, ?`]

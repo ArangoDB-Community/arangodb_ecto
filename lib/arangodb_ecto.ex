@@ -9,13 +9,12 @@ defmodule ArangoDB.Ecto do
   alias ArangoDB.Ecto.Utils
 
   def truncate(repo, coll) do
-    result =
-      Utils.get_endpoint(repo)
-      |> Arangoex.Collection.truncate(%Arangoex.Collection{name: coll})
-
-    case result do
+    %Arango.Collection{name: coll}
+    |> Arango.Collection.truncate()
+    |> Arango.Request.perform(Utils.get_config(repo))
+    |> case do
       {:ok, _} -> :ok
-      {:error, _} -> result
+      {:error, _} = result -> result
     end
   end
 

@@ -26,9 +26,9 @@ defmodule ArangoDB.Ecto.Migration do
   Executes migration commands.
   """
   def execute_ddl(repo, command, opts) do
-    endpoint = Utils.get_endpoint(repo)
+    config = Utils.get_config(repo)
     not_exists_cmd = is_not_exists(command)
-    result = execute(endpoint, command, opts)
+    result = execute(config, command, opts)
 
     case result do
       {:ok, _} ->
@@ -49,7 +49,8 @@ defmodule ArangoDB.Ecto.Migration do
 
   @key_types ["traditional", "autoincrement", "padded", "uuid"]
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, _opts)
+  @spec execute(any, any, any) :: Arango.ok_error(any())
+  defp execute(config, {cmd, %Ecto.Migration.Table{name: name, options: options}, _}, _opts)
        when cmd in [:create, :create_if_not_exists] do
     collection_type =
       if is_binary(options) && String.contains?(options, "edge") do
@@ -65,26 +66,29 @@ defmodule ArangoDB.Ecto.Migration do
         nil
       end
 
-    Arangoex.Collection.create(endpoint, %Arangoex.Collection{name: name, type: collection_type, keyOptions: %{type: key_type}})
+    Arango.Collection.create(%Arango.Collection{name: name, type: collection_type})
+    |> Arango.Request.perform(config)
   end
 
-  defp execute(endpoint, {cmd, %Ecto.Migration.Table{name: name}}, _opts)
+  defp execute(config, {cmd, %Ecto.Migration.Table{name: name}}, _opts)
        when cmd in [:drop, :drop_if_exists] do
-    Arangoex.Collection.drop(endpoint, %Arangoex.Collection{name: name})
+    Arango.Collection.drop(%Arango.Collection{name: name})
+    |> Arango.Request.perform(config)
   end
 
   defp execute(
-         endpoint,
+         config,
          {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index},
          _opts
        )
        when cmd in [:create, :create_if_not_exists] do
     body = make_index(index)
-    Arangoex.Index.create_general(endpoint, collection, Map.put(body, :fields, fields))
+    Arango.Index.create_general(collection, Map.put(body, :fields, fields))
+    |> Arango.Request.perform(config)
   end
 
   defp execute(
-         endpoint,
+         config,
          {cmd, %Ecto.Migration.Index{table: collection, columns: fields} = index},
          _opts
        )
@@ -92,17 +96,18 @@ defmodule ArangoDB.Ecto.Migration do
     body =
       make_index(index)
       |> Map.put(:fields, fields)
-      |> Poison.encode!()
-      |> Poison.decode!()
+      |> Jason.encode!()
+      |> Jason.decode!()
       |> MapSet.new()
 
     {:ok, %{"error" => false, "indexes" => indexes}} =
-      Arangoex.Index.indexes(endpoint, collection)
+      Arango.Index.indexes(collection)
+      |> Arango.Request.perform(config)
 
     matching_index = Enum.filter(indexes, &MapSet.subset?(body, MapSet.new(&1)))
 
     case {cmd, matching_index} do
-      {_, [index]} -> Arangoex.Index.delete(endpoint, index["id"])
+      {_, [index]} -> Arango.Index.delete(index["id"]) |> Arango.Request.perform(config)
       {:drop_if_exists, []} -> :ok
       {:drop, []} -> raise "No index found matching #{inspect(index)}"
     end

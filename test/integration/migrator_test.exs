@@ -30,26 +30,26 @@ defmodule ArangoDB.Ecto.Integration.MigratorTest do
   end
 
   test "run and rollback collection migration" do
-    endpoint = ArangoDB.Ecto.Utils.get_endpoint(PoolRepo)
+    config = ArangoDB.Ecto.Utils.get_config(PoolRepo)
 
     assert up(PoolRepo, 20_100_906_120_000, CollectionMigration, log: false) == :ok
-    {:ok, collections} = Arangoex.Collection.collections(endpoint)
+    {:ok, collections} = Arango.Collection.collections() |> Arango.request(config)
     assert [_] = collections |> Enum.filter(&match?(%{name: "dummy_collection"}, &1))
 
     assert down(PoolRepo, 20_100_906_120_000, CollectionMigration, log: false) == :ok
-    {:ok, collections} = Arangoex.Collection.collections(endpoint)
+    {:ok, collections} = Arango.Collection.collections() |> Arango.request(config)
     assert [] = collections |> Enum.filter(&match?(%{name: "dummy_collection"}, &1))
   end
 
   test "run and rollback index migration" do
-    endpoint = ArangoDB.Ecto.Utils.get_endpoint(PoolRepo)
+    config = ArangoDB.Ecto.Utils.get_config(PoolRepo)
 
     assert up(PoolRepo, 20_100_906_120_000, IndexMigration, log: false) == :ok
-    {:ok, %{"error" => false, "indexes" => indexes}} = Arangoex.Index.indexes(endpoint, "posts")
+    {:ok, %{"error" => false, "indexes" => indexes}} = Arango.Index.indexes("posts") |> Arango.request(config)
     assert [_index] = indexes |> Enum.filter(&match?(%{"fields" => ["author_id"]}, &1))
 
     assert down(PoolRepo, 20_100_906_120_000, IndexMigration, log: false) == :ok
-    {:ok, %{"error" => false, "indexes" => indexes}} = Arangoex.Index.indexes(endpoint, "posts")
+    {:ok, %{"error" => false, "indexes" => indexes}} = Arango.Index.indexes("posts") |> Arango.request(config)
     assert [] = indexes |> Enum.filter(&match?(%{"fields" => ["author_id"]}, &1))
   end
 end

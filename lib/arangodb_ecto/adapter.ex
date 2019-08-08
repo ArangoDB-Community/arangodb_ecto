@@ -14,25 +14,34 @@ defmodule ArangoDB.Ecto.Adapter do
   @type prepared :: Ecto.Adapter.prepared()
   @type cached :: Ecto.Adapter.cached()
   @type process :: Ecto.Adapter.process()
-  @type autogenerate_id :: Ecto.Adapter.autogenerate_id()
   @type on_conflict :: Ecto.Adapter.on_conflict()
 
-  @typep repo :: Ecto.Adapter.repo()
-  @typep options :: Ecto.Adapter.options()
+  @typep repo :: Ecto.Repo.t
+  @typep options :: Keyword.t
 
   def exec_query!(repo, aql, vars) do
     Logger.debug(aql)
-    cursor = make_cursor(aql, vars)
-    endpoint = Utils.get_endpoint(repo)
     
-    Arangoex.Cursor.cursor_create(endpoint, cursor)
-    |> process_result(& &1, endpoint)
+    config = Utils.get_config(repo)
+
+    make_cursor(aql, vars)
+    |> Arango.Cursor.cursor_create()
+    |> Arango.Request.perform(config)
+    |> process_result(& &1, config)
     |> elem(1)
   end
 
   # Adapter callbacks
 
-  def ensure_all_started(_repo, type), do: Application.ensure_all_started(:arangodb_ecto, type)
+  def ensure_all_started(_repo, type) do
+    adapter = Application.get_env(:arango, :adapter)
+    if adapter == Tesla.Adapter.Hackney or match?({Tesla.Adapter.Hackney, _}, adapter) do
+      # Workaround for :hackney not beeing started by ecto.* mix tasks since it is only a optional dependency.
+      # TODO: find a better solution for this!
+      Application.ensure_all_started(:hackney, type)
+    end
+    Application.ensure_all_started(:arangodb_ecto, type)
+  end
 
   def child_spec(_repo, _opts),
     do: Supervisor.Spec.supervisor(Supervisor, [[], [strategy: :one_for_one]])
@@ -62,12 +71,8 @@ defmodule ArangoDB.Ecto.Adapter do
   def dumpers(:date, type) when type in [:date, Date],
     do: [fn %Date{} = d -> {:ok, Date.to_iso8601(d)} end]
 
-  def dumpers(:date, Ecto.Date), do: [fn d -> {:ok, Ecto.Date.to_iso8601(d)} end]
-
   def dumpers(:time, type) when type in [:time, Time],
     do: [fn %Time{} = t -> {:ok, Time.to_iso8601(t)} end]
-
-  def dumpers(:time, Ecto.Time), do: [fn t -> {:ok, Ecto.Time.to_iso8601(t)} end]
 
   def dumpers(:utc_datetime, type) when type in [:utc_datetime, DateTime],
     do: [fn %DateTime{} = dt -> {:ok, DateTime.to_iso8601(dt)} end]
@@ -96,13 +101,14 @@ defmodule ArangoDB.Ecto.Adapter do
                | {:cache, (cached -> :ok), prepared}
   def execute(repo, %{prefix: prefix}, {:nocache, aql}, params, mapper, _options) do
     Logger.debug(aql)
-    cursor = make_cursor(aql, params)
-    # TODO - apply Arango specific options
-    endpoint = Utils.get_endpoint(repo, prefix)
+    config = Utils.get_config(repo, prefix)
 
-    endpoint
-    |> Arangoex.Cursor.cursor_create(cursor)
-    |> process_result(mapper, endpoint)
+    # TODO - apply Arango specific options
+    aql
+    |> make_cursor(params)
+    |> Arango.Cursor.cursor_create()
+    |> Arango.Request.perform(config)
+    |> process_result(mapper, config)
   end
 
   @spec insert_all(repo, schema_meta, header :: [atom], [fields], on_conflict, returning, options) ::
@@ -129,8 +135,9 @@ defmodule ArangoDB.Ecto.Adapter do
       ["Inserting documents ", inspect(docs), " into collection ", collection]
     end)
 
-    Utils.get_endpoint(repo, prefix)
-    |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, docs, opts)
+    %Arango.Collection{name: collection}
+    |> Arango.Document.create(docs, opts)
+    |> Arango.Request.perform(Utils.get_config(repo, prefix))
     |> handle_insert_result(returning)
   end
 
@@ -144,8 +151,9 @@ defmodule ArangoDB.Ecto.Adapter do
     end)
 
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, prefix)
-    |> Arangoex.Document.create(%Arangoex.Collection{name: collection}, document, [])
+    %Arango.Collection{name: collection}
+    |> Arango.Document.create(document, [])
+    |> Arango.Request.perform(Utils.get_config(repo, prefix))
     |> process_single_document_result(returning)
   end
 
@@ -156,8 +164,9 @@ defmodule ArangoDB.Ecto.Adapter do
     old = %{_key: key, _id: "#{collection}/#{key}"}
     Logger.debug(fn -> ["Updating document ", inspect(old), " to: ", inspect(document)] end)
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, prefix)
-    |> Arangoex.Document.update(old, document, [])
+    old
+    |> Arango.Document.update(document, [])
+    |> Arango.Request.perform(Utils.get_config(repo, prefix))
     |> process_single_document_result(returning)
   end
 
@@ -168,11 +177,11 @@ defmodule ArangoDB.Ecto.Adapter do
   @spec delete(repo, schema_meta, filters, options) ::
           {:ok, fields} | {:invalid, constraints} | {:error, :stale} | no_return
   def delete(repo, %{source: {prefix, collection}}, [{:_key, key}], _options) do
-    Logger.debug(fn -> ["Deleting document with key ", key, " from collection ", collection] end)
-    doc = %{_key: key, _id: "#{collection}/#{key}"}
+    Logger.debug(fn -> ["Deleting document with key ", key, " from collection ", collection] end)    
     # TODO - apply Arango specific options
-    Utils.get_endpoint(repo, prefix)
-    |> Arangoex.Document.delete(doc)
+    %Arango.Document.Docref{_key: key, _id: "#{collection}/#{key}"}
+    |> Arango.Document.delete()
+    |> Arango.Request.perform(Utils.get_config(repo, prefix))
     |> case do
       {:ok, _} -> {:ok, []}
       {:error, err} -> raise_error(err)
@@ -189,7 +198,7 @@ defmodule ArangoDB.Ecto.Adapter do
   defp process_single_document_result({:ok, doc}, fields),
     do: {:ok, Enum.map(fields, &{&1, Map.get(doc, &1)})}
 
-  defp process_single_document_result({:error, %{"errorNum" => 1210, "errorMessage" => msg} = res}, _),
+  defp process_single_document_result({:error, %{"errorNum" => 1210, "errorMessage" => msg}}, _),
     do: {:invalid, [unique: msg]}
 
   defp process_single_document_result({:error, err}, _), do: raise_error(err)
@@ -205,9 +214,10 @@ defmodule ArangoDB.Ecto.Adapter do
     {count, nil}
   end
 
-  defp process_result({:ok, %{"hasMore" => true, "result" => docs, "id" => id}}, mapper, endpoint) do
-    Arangoex.Cursor.cursor_next(endpoint, id)
-    |> process_cursor_result(mapper, endpoint, [docs])
+  defp process_result({:ok, %{"hasMore" => true, "result" => docs, "id" => id}}, mapper, config) do
+    Arango.Cursor.cursor_next(id)
+    |> Arango.Request.perform(config)
+    |> process_cursor_result(mapper, config, [docs])
   end
 
   defp process_result({:ok, %{"result" => docs}}, mapper, _endpoint), do: decode_map(docs, mapper)
@@ -217,11 +227,12 @@ defmodule ArangoDB.Ecto.Adapter do
   defp process_cursor_result(
          {:ok, %{"hasMore" => true, "result" => docs, "id" => id}},
          mapper,
-         endpoint,
+         config,
          nested_docs
        ) do
-    Arangoex.Cursor.cursor_next(endpoint, id)
-    |> process_cursor_result(mapper, endpoint, [docs | nested_docs])
+    Arango.Cursor.cursor_next(id)
+    |> Arango.Request.perform(config)
+    |> process_cursor_result(mapper, config, [docs | nested_docs])
   end
 
   defp process_cursor_result({:ok, %{"result" => docs}}, mapper, _endpoint, nested_docs) do
@@ -239,7 +250,9 @@ defmodule ArangoDB.Ecto.Adapter do
   # Helpers
   #
 
+  # TODO - use custom Error class
   defp raise_error(%{"errorMessage" => msg}), do: raise(msg)
+  defp raise_error(err) when is_atom(err), do: raise(Atom.to_string(err))
 
   defp build_documents(fields) when is_list(fields) do
     Enum.map(fields, fn
@@ -300,15 +313,15 @@ defmodule ArangoDB.Ecto.Adapter do
     |> elem(0)
   end
 
-  defp make_cursor(aql, []), do: %Arangoex.Cursor.Cursor{query: aql}
-
+  @spec make_cursor(any(), any()) :: Arango.Cursor.Cursor.t
+  defp make_cursor(aql, []), do: %Arango.Cursor.Cursor{query: aql}
   defp make_cursor(aql, params) do
     vars =
       params
       |> Enum.with_index(1)
       |> Enum.map(fn {value, idx} -> {Integer.to_string(idx), value} end)
 
-    %Arangoex.Cursor.Cursor{query: aql, bind_vars: vars}
+    %Arango.Cursor.Cursor{query: aql, bind_vars: vars}
   end
 
   defp load_date(d) do
