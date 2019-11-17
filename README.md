@@ -125,7 +125,7 @@ To use the latest version, available on github:
 
 ```elixir
 def deps do
-  [{:arangodb_ecto, git: "https://github.com/ArangoDB-Community/arangodb_ecto.git"},
+  [{:arangodb_ecto, git: "https://github.com/ArangoDB-Community/arangodb_ecto.git"}],
 end
 ```
 
