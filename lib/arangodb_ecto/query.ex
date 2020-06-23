@@ -323,6 +323,14 @@ defmodule ArangoDB.Ecto.Query do
     [expr(arg, sources, query) | " == NULL"]
   end
 
+  defp expr({:datetime_add, _, [datetime, count, interval]}, sources, query) do
+    ["DATE_ADD(", expr(datetime, sources, query), ", ", String.Chars.Integer.to_string(count), ", \"", interval | "\")"]
+  end
+
+  defp expr({:date_add, arg, [date, count, interval]}, sources, query) do
+    ["LEFT(", expr({:datetime_add, arg, [date, count, interval]}, sources, query) | ", 10)"]
+  end
+
   defp expr({:in, _, [_left, []]}, _sources, _query) do
     "FALSE"
   end
