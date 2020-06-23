@@ -324,7 +324,7 @@ defmodule ArangoDB.Ecto.Query do
   end
 
   defp expr({:datetime_add, _, [datetime, count, interval]}, sources, query) do
-    ["DATE_ADD(", expr(datetime, sources, query), ", ", String.Chars.Integer.to_string(count), ", \"", interval | "\")"]
+    ["DATE_ADD(", expr(datetime, sources, query), ", ", expr(count, sources, query), ", \"", interval | "\")"]
   end
 
   defp expr({:date_add, arg, [date, count, interval]}, sources, query) do
@@ -398,7 +398,7 @@ defmodule ArangoDB.Ecto.Query do
     if String.contains?(name, "`"), do: error!(nil, "bad field name #{inspect(name)}")
     [?`, name, ?`]
   end
-  
+
   defp quote_collection(name) do
     if String.contains?(name, "`"), do: error!(nil, "bad table name #{inspect(name)}")
     [?`, name, ?`]

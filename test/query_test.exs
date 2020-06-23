@@ -132,13 +132,14 @@ defmodule ArangoDB.Ecto.Query.Test do
     end
 
     test "with datetime_add in where clause" do
-      assert aql(from(u in User, select: u._key, where: datetime_add(u.inserted_at, 5, "day") < ^DateTime.utc_now())) =~
-               "FOR u0 IN `users` FILTER (DATE_ADD(u0.`inserted_at`, 5, \"day\") < @1) RETURN [ u0.`_key` ]"
+      num_days = 5
+      assert aql(from(u in User, select: u._key, where: datetime_add(u.inserted_at, ^num_days, "day") < ^DateTime.utc_now())) =~
+               "FOR u0 IN `users` FILTER (DATE_ADD(u0.`inserted_at`, @1, \"day\") < @2) RETURN [ u0.`_key` ]"
     end
 
     test "with date_add in where clause" do
-      assert aql(from(p in Post, select: p._key, where: date_add(p.posted, 5, "day") < ^Date.utc_today())) =~
-               "FOR p0 IN `posts` FILTER (LEFT(DATE_ADD(p0.`posted`, 5, \"day\"), 10) < @1) RETURN [ p0.`_key` ]"
+      assert aql(from(p in Post, select: p._key, where: date_add(p.posted, p.counter, "day") < ^Date.utc_today())) =~
+               "FOR p0 IN `posts` FILTER (LEFT(DATE_ADD(p0.`posted`, p0.`counter`, \"day\"), 10) < @1) RETURN [ p0.`_key` ]"
     end
   end
 
